@@ -4,7 +4,7 @@
       <template #left>
         <a href="/" class="flex items-center cursor-pointer">
           <span class="font-semibold text-lg tracking-tight text-(--label-text)"
-            >DynamicStudios</span
+            >Beer</span
           >
         </a>
       </template>
@@ -26,7 +26,7 @@
                       class="flex h-full w-full select-none flex-col justify-end rounded-xl bg-linear-to-b from-blue-500 to-blue-700 p-6 no-underline outline-none shadow-lg"
                     >
                       <div class="mt-4 mb-2 text-xl font-bold text-white">
-                        Dynamic Studios
+                        Beer
                       </div>
                       <p class="text-sm leading-tight text-white/90">
                         Explore our collection of powerful plugins to enhance
@@ -35,7 +35,7 @@
                     </NavigationMenuLink>
                   </li>
                   <NavigationMenuListItem href="#intro" title="Introduction">
-                    Get started with Dynamic Studios and learn the basics.
+                    Get started with Beer and learn the basics.
                   </NavigationMenuListItem>
                   <NavigationMenuListItem href="#install" title="Installation">
                     Step-by-step guide to install our plugins.
@@ -203,7 +203,7 @@
     </NavigationMenu>
 
     <div class="p-8">
-      <h1 class="text-4xl font-bold text-primary mb-4">Dynamic Studios</h1>
+      <h1 class="text-4xl font-bold text-primary mb-4">Beer</h1>
       <p class="mb-6">{{ $t("welcome") }}</p>
 
       <div class="mb-4">
@@ -984,9 +984,7 @@
     >
       <Sidebar>
         <SidebarHeader>
-          <span class="text-xl font-bold text-primary font-mono">
-            Dynamic<span class="text-(--label-text)">Studios</span>
-          </span>
+          <span class="text-xl font-bold text-primary font-mono"> Beer </span>
           <template #icon>
             <div
               class="h-8 w-8 rounded-lg bg-primary flex items-center justify-center text-white font-bold text-lg"
@@ -1096,8 +1094,12 @@
 </template>
 
 <script setup lang="ts">
+definePageMeta({
+  middleware: "auth",
+});
+
 useHead({
-  title: "Dynamic Studios",
+  title: "Beer Studios",
   meta: [
     {
       name: "viewport",
@@ -1106,7 +1108,7 @@ useHead({
     },
     {
       name: "description",
-      content: "Dynamic Studios website",
+      content: "Beer website",
     },
   ],
 });

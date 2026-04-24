@@ -2,6 +2,10 @@
   <PresetsFormLogin />
 </template>
 
-<script lang="ts" setup></script>
+<script setup lang="ts">
+definePageMeta({
+  middleware: "auth",
+});
+</script>
 
 <style></style>

@@ -1,0 +1,6 @@
+@theme {
+  /* Here it will be stuff that will be put in https://tailwindcss.com/docs/theme */
+  --color-primary: var(--color-primary);
+  --color-secondary: var(--color-secondary);
+  --color-accent: var(--color-accent);
+}

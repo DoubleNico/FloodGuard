@@ -20,7 +20,6 @@ export default defineNuxtRouteMiddleware((to) => {
       },
     });
   }
-
   if (isAuthenticated && isAuthRoute) {
     return navigateTo(sanitizeRedirectPath(to.query.redirect));
   }

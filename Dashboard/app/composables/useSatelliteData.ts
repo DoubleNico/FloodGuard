@@ -46,6 +46,92 @@ const COORDS: Record<string, { lat: number; lng: number }> = {
   "Micro 17": { lat: 45.4215, lng: 28.0195 },
 };
 
+const DEFAULT_CENTER = { lat: 45.43, lng: 28.05 };
+
+const isFiniteNumber = (value: unknown): value is number =>
+  typeof value === "number" && Number.isFinite(value);
+
+const toLatLngTuple = (point: unknown): [number, number] | null => {
+  if (Array.isArray(point) && point.length >= 2) {
+    const [lat, lng] = point;
+    if (isFiniteNumber(lat) && isFiniteNumber(lng)) {
+      return [lat, lng];
+    }
+  }
+
+  if (
+    point &&
+    typeof point === "object" &&
+    "lat" in point &&
+    "lng" in point &&
+    isFiniteNumber((point as { lat: unknown }).lat) &&
+    isFiniteNumber((point as { lng: unknown }).lng)
+  ) {
+    return [(point as { lat: number }).lat, (point as { lng: number }).lng];
+  }
+
+  return null;
+};
+
+const createGridPolygon = (
+  lat: number,
+  lng: number,
+  radius: number,
+): [number, number][] => {
+  const halfSideMeters = Math.max(100, radius);
+  const latOffset = halfSideMeters / 111320;
+  const lngOffset =
+    halfSideMeters / (111320 * Math.max(0.1, Math.cos((lat * Math.PI) / 180)));
+
+  return [
+    [lat - latOffset, lng - lngOffset],
+    [lat - latOffset, lng + lngOffset],
+    [lat + latOffset, lng + lngOffset],
+    [lat + latOffset, lng - lngOffset],
+  ];
+};
+
+const normalizeRiskLevel = (value: unknown): FloodHeatmapZone["riskLevel"] => {
+  if (typeof value !== "string") return "low";
+  const normalized = value.toLowerCase();
+  if (
+    normalized === "low" ||
+    normalized === "moderate" ||
+    normalized === "high" ||
+    normalized === "critical"
+  ) {
+    return normalized;
+  }
+  return "low";
+};
+
+const parseHeatmapPolygon = (
+  polygon: unknown,
+  lat: number,
+  lng: number,
+  radius: number,
+): [number, number][] => {
+  let parsed = polygon;
+
+  if (typeof parsed === "string") {
+    try {
+      parsed = JSON.parse(parsed);
+    } catch {
+      parsed = null;
+    }
+  }
+
+  if (!Array.isArray(parsed)) {
+    return createGridPolygon(lat, lng, radius);
+  }
+
+  const points = parsed
+    .map((point) => toLatLngTuple(point))
+    .filter((point): point is [number, number] => point !== null);
+
+  return points.length >= 3 ? points : createGridPolygon(lat, lng, radius);
+};
+
 export const useSatelliteData = () => {
   const { get } = useApi();
   const waterLevels = useState<WaterLevelReading[]>("water-levels", () => []);
@@ -92,13 +178,28 @@ export const useSatelliteData = () => {
         status: r.status,
         signal: r.signal,
       }));
-      floodHeatmap.value = heatmap.map((r) => ({
-        ...r,
-        radius:
+      floodHeatmap.value = heatmap.map((r) => {
+        const intensity =
+          typeof r.intensity === "number"
+            ? Math.max(0, Math.min(1, r.intensity))
+            : 0;
+        const radius =
           typeof r.radius === "number"
             ? r.radius
-            : Math.max(30, Math.round(r.intensity * 100)),
-      }));
+            : Math.max(120, Math.round(intensity * 500));
+        const lat = typeof r.lat === "number" ? r.lat : DEFAULT_CENTER.lat;
+        const lng = typeof r.lng === "number" ? r.lng : DEFAULT_CENTER.lng;
+
+        return {
+          ...r,
+          lat,
+          lng,
+          intensity,
+          radius,
+          riskLevel: normalizeRiskLevel(r.riskLevel),
+          polygon: parseHeatmapPolygon(r.polygon, lat, lng, radius),
+        };
+      });
     } catch {
       /* keep existing */
     } finally {

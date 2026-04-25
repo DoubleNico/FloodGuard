@@ -39,5 +39,170 @@
     "current_plan": "Current Plan",
     "upgrade": "Upgrade",
     "per_month": "/month"
+  },
+  "mapPage": {
+    "title": "Safe Locations Map",
+    "subtitle": "Manage evacuation shelters and assembly points — Galați",
+    "open": "Open",
+    "occupied": "Occupied",
+    "addLocation": "Add Location",
+    "safeLocations": "Safe Locations",
+    "floodHeatmap": "Flood Heatmap",
+    "fields": {
+      "type": "Type",
+      "status": "Status",
+      "capacity": "Capacity",
+      "phone": "Phone"
+    },
+    "notAvailable": "N/A",
+    "loadingMap": "Loading map...",
+    "locationRegistry": "Location Registry",
+    "floodIntensity": "Flood Intensity",
+    "loadingHeatmap": "Loading heatmap...",
+    "floodRiskZones": "Flood Risk Zones",
+    "zones": "zones",
+    "intensity": "Intensity",
+    "legend": "Legend",
+    "legendLabels": {
+      "critical": "Critical (75-100%)",
+      "high": "High (50-75%)",
+      "moderate": "Moderate (25-50%)",
+      "low": "Low (0-25%)"
+    },
+    "source": "Source",
+    "hydrologicalModel": "Hydrological Model",
+    "addSafeLocation": "Add Safe Location",
+    "form": {
+      "locationName": "Location Name",
+      "locationNamePlaceholder": "e.g. School No. 14 - Gymnasium",
+      "latitude": "Latitude",
+      "longitude": "Longitude",
+      "address": "Address",
+      "addressPlaceholder": "Full address",
+      "capacity": "Capacity",
+      "type": "Type",
+      "contactPhone": "Contact Phone",
+      "accessibilityNotes": "Accessibility Notes",
+      "accessibilityNotesPlaceholder": "Wheelchair access, elevators, etc."
+    },
+    "cancel": "Cancel",
+    "locationTypes": {
+      "shelter": "Shelter",
+      "assemblyPoint": "Assembly Point",
+      "medical": "Medical Facility",
+      "supplyDepot": "Supply Depot"
+    },
+    "locationStatus": {
+      "open": "Open",
+      "filling": "Filling",
+      "full": "Full",
+      "closed": "Closed"
+    },
+    "riskLevel": {
+      "low": "Low Risk",
+      "moderate": "Moderate Risk",
+      "high": "High Risk",
+      "critical": "Critical Risk"
+    }
+  },
+  "satellitePage": {
+    "title": "Satellite Intelligence",
+    "subtitle": "Copernicus Earth Observation & Galileo GNSS data feeds",
+    "cards": {
+      "galileoSatellites": "Galileo Satellites",
+      "averageSignal": "Avg Signal Strength",
+      "highestWaterLevel": "Highest Water Level",
+      "ndwiZonesMonitored": "NDWI Zones Monitored"
+    },
+    "waterForecast": {
+      "title": "Water Level Stations & Flood Forecast",
+      "source": "Copernicus Sentinel-1 SAR - Galați Monitoring Network"
+    },
+    "liveFeed": "Live Feed",
+    "fields": {
+      "level": "Level",
+      "warning": "Warning",
+      "critical": "Critical",
+      "trend": "Trend"
+    },
+    "units": {
+      "cm": "cm"
+    },
+    "floodIntensity": "Flood Intensity",
+    "levelBands": {
+      "normal": "Normal",
+      "warning": "Warning",
+      "critical": "Critical"
+    },
+    "precipitation": {
+      "title": "Precipitation Forecast",
+      "source": "Copernicus ERA5 Reanalysis",
+      "actual": "Actual (mm)",
+      "forecast": "Forecast (mm)",
+      "unit": "mm"
+    },
+    "loadingChart": "Loading chart...",
+    "galileoStatus": {
+      "title": "Galileo Constellation Status",
+      "operational": "Operational",
+      "testing": "Testing",
+      "unavailable": "Unavailable"
+    },
+    "active": "Active",
+    "ndwi": {
+      "title": "NDWI Analysis & Risk Map",
+      "source": "Copernicus Sentinel-2 MSI",
+      "value": "NDWI Value"
+    },
+    "trends": {
+      "rising": "Rising",
+      "stable": "Stable",
+      "falling": "Falling"
+    },
+    "risk": {
+      "low": "Low Risk",
+      "moderate": "Moderate Risk",
+      "high": "High Risk",
+      "critical": "Critical Risk"
+    }
+  },
+  "industrialPage": {
+    "title": "Industrial Hub",
+    "subtitle": "Facility monitoring and flood risk assessment — Galați Industrial Zone",
+    "cards": {
+      "totalFacilities": "Total Facilities",
+      "atRiskFacilities": "At-Risk Facilities",
+      "employeesAtRisk": "Employees at Risk",
+      "criticalSensors": "Critical Sensors"
+    },
+    "map": {
+      "title": "Factory Locations & Flood Risk",
+      "source": "Copernicus Flood Risk Overlay",
+      "floodIntensity": "Flood Intensity"
+    },
+    "fields": {
+      "status": "Status",
+      "risk": "Risk",
+      "employees": "Employees",
+      "waterDistance": "Water Distance",
+      "sensors": "Sensors"
+    },
+    "units": {
+      "meters": "m"
+    },
+    "people": "People",
+    "water": "Water",
+    "risk": {
+      "low": "Low Risk",
+      "moderate": "Moderate Risk",
+      "high": "High Risk",
+      "critical": "Critical Risk"
+    },
+    "status": {
+      "operational": "Operational",
+      "warning": "Warning",
+      "critical": "Critical",
+      "offline": "Offline"
+    }
   }
 }

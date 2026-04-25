@@ -7,7 +7,7 @@
       </div>
       <div class="flex items-center gap-3">
         <Button variant="outline" color="primary" icon-left="mdi:plus" @click="showCreateModal = true">New Alert</Button>
-        <Button v-if="activeAlerts.length > 0" variant="solid" color="danger" icon-left="mdi:broadcast" class="alarm-ring" @click="showBroadcastModal = true">
+        <Button v-if="activeAlerts.length > 0" variant="solid" color="danger" icon-left="mdi:broadcast" class="alarm-ring" @click="openGlobalBroadcastModal">
           Broadcast Global Alarm
         </Button>
       </div>
@@ -71,14 +71,30 @@
         </div>
         <h3 class="text-xl font-bold text-(--label-text)">Send Emergency Broadcast?</h3>
         <p class="text-sm text-(--hint-text)">This will send a high-priority push notification to all registered citizens in the affected zones. This action cannot be undone.</p>
-        <div class="p-3 rounded-xl bg-(--surface-secondary) text-left">
+        
+        <div v-if="!isGlobalBroadcast" class="p-3 rounded-xl bg-(--surface-secondary) text-left">
           <p class="text-xs text-(--hint-text) mb-1">Alert to broadcast:</p>
           <p class="text-sm font-medium text-(--label-text)">{{ broadcastTarget?.title || 'Select an alert' }}</p>
+        </div>
+        <div v-else class="text-left mt-4">
+          <CustomSelect
+            v-model="selectedBroadcastAlertId"
+            label="Select Alert to Broadcast"
+            :options="broadcastableAlerts.map(a => ({ label: a.title, value: a.id }))"
+          />
         </div>
       </div>
       <template #footer="{ close }">
         <Button variant="outline" color="secondary" @click="close">Cancel</Button>
-        <Button variant="solid" color="danger" icon-left="mdi:broadcast" @click="confirmBroadcast(close)">Confirm Broadcast</Button>
+        <Button 
+          variant="solid" 
+          color="danger" 
+          icon-left="mdi:broadcast" 
+          @click="confirmBroadcast(close)"
+          :disabled="isGlobalBroadcast && !selectedBroadcastAlertId"
+        >
+          Confirm Broadcast
+        </Button>
       </template>
     </Modal>
   </div>
@@ -95,8 +111,11 @@ const activeTab = ref("all");
 const showCreateModal = ref(false);
 const showBroadcastModal = ref(false);
 const broadcastTarget = ref<FloodAlert | null>(null);
+const isGlobalBroadcast = ref(false);
+const selectedBroadcastAlertId = ref("");
 
 const closedAlerts = computed(() => alerts.value.filter(a => a.status === "closed"));
+const broadcastableAlerts = computed(() => alerts.value.filter(a => a.status === "approved" || a.status === "published"));
 
 const newAlert = reactive({
   type: "",
@@ -135,13 +154,23 @@ const handleCreateAlert = () => {
   Object.assign(newAlert, { type: "", severity: "", title: "", message: "", affectedAreas: "" });
 };
 
+const openGlobalBroadcastModal = () => {
+  isGlobalBroadcast.value = true;
+  broadcastTarget.value = null;
+  selectedBroadcastAlertId.value = "";
+  showBroadcastModal.value = true;
+};
+
 const onBroadcast = (alert: FloodAlert) => {
+  isGlobalBroadcast.value = false;
   broadcastTarget.value = alert;
   showBroadcastModal.value = true;
 };
 
 const confirmBroadcast = (close: () => void) => {
-  if (broadcastTarget.value) {
+  if (isGlobalBroadcast.value && selectedBroadcastAlertId.value) {
+    broadcastGlobalAlarm(selectedBroadcastAlertId.value);
+  } else if (broadcastTarget.value) {
     broadcastGlobalAlarm(broadcastTarget.value.id);
   }
   close();

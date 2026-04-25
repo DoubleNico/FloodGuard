@@ -1,5 +1,5 @@
 import "leaflet/dist/leaflet.css";
-import { LMap, LTileLayer, LMarker, LPopup, LIcon } from "@vue-leaflet/vue-leaflet";
+import { LMap, LTileLayer, LMarker, LPopup, LIcon, LPolygon } from "@vue-leaflet/vue-leaflet";
 
 export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.component("LMap", LMap);
@@ -7,4 +7,5 @@ export default defineNuxtPlugin((nuxtApp) => {
   nuxtApp.vueApp.component("LMarker", LMarker);
   nuxtApp.vueApp.component("LPopup", LPopup);
   nuxtApp.vueApp.component("LIcon", LIcon);
+  nuxtApp.vueApp.component("LPolygon", LPolygon);
 });

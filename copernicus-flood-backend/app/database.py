@@ -139,6 +139,16 @@ def create_schema(conn: sqlite3.Connection) -> None:
             active_users INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS flood_heatmap (
+            id TEXT PRIMARY KEY,
+            zone TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            intensity REAL NOT NULL,
+            polygon TEXT NOT NULL,
+            risk_level TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS mobile_users (
             id TEXT PRIMARY KEY,
             full_name TEXT NOT NULL,
@@ -561,6 +571,61 @@ def seed_database(conn: sqlite3.Connection) -> None:
         ) VALUES (1, 'operations', 47, 7, 12, 4)
         """
     )
+
+    if conn.execute("SELECT COUNT(*) FROM flood_heatmap").fetchone()[0] == 0:
+        import math
+        heatmap_seed = []
+        lat_start = 45.39
+        lng_start = 28.00
+        lat_step = 0.008
+        lng_step = 0.012
+        
+        idx = 1
+        for i in range(12):
+            for j in range(12):
+                lat1 = lat_start + i * lat_step
+                lat2 = lat1 + lat_step
+                lng1 = lng_start + j * lng_step
+                lng2 = lng1 + lng_step
+                
+                center_lat = (lat1 + lat2) / 2
+                center_lng = (lng1 + lng2) / 2
+                
+                # Distance to "danger" center (Port)
+                dist = math.sqrt((center_lat - 45.425)**2 + ((center_lng - 28.055) * 0.7)**2)
+                
+                # Base intensity
+                intensity = max(0.0, 1.0 - (dist / 0.04))
+                # Add some noise to make it look realistic
+                import random
+                intensity = min(1.0, max(0.0, intensity + random.uniform(-0.15, 0.15)))
+                
+                if intensity >= 0.75:
+                    risk = "critical"
+                elif intensity >= 0.5:
+                    risk = "high"
+                elif intensity >= 0.25:
+                    risk = "moderate"
+                else:
+                    risk = "low"
+                    
+                polygon = [[lat1, lng1], [lat2, lng1], [lat2, lng2], [lat1, lng2]]
+                
+                heatmap_seed.append((
+                    f"HZ-G{idx:03d}",
+                    f"Grid {i}-{j}",
+                    center_lat,
+                    center_lng,
+                    intensity,
+                    json.dumps(polygon),
+                    risk
+                ))
+                idx += 1
+                
+        conn.executemany(
+            "INSERT INTO flood_heatmap (id, zone, lat, lng, intensity, polygon, risk_level) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            heatmap_seed
+        )
     conn.execute(
         """
         UPDATE subscription_status

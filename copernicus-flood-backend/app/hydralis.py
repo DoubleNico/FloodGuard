@@ -69,6 +69,27 @@ class UpdateLocationRequest(BaseModel):
     accessibilityNotes: str | None = None
 
 
+class CreateFactoryRequest(BaseModel):
+    name: str
+    location: str
+    lat: float
+    lng: float
+    status: FactoryStatus
+    riskLevel: RiskLevel
+    waterProximity: int
+    employees: int
+
+
+class CreateSensorRequest(BaseModel):
+    factoryId: str
+    name: str
+    type: str
+    value: float
+    unit: str
+    threshold: float
+    status: SensorStatus
+
+
 class ConnectionManager:
     def __init__(self) -> None:
         self.active_connections: set[WebSocket] = set()
@@ -332,10 +353,52 @@ def galileo(conn: sqlite3.Connection = Depends(db)) -> list[dict[str, Any]]:
     return [dict(row) for row in conn.execute("SELECT id, name, status, signal FROM galileo_satellites").fetchall()]
 
 
+@router.get("/satellite/heatmap")
+def heatmap(conn: sqlite3.Connection = Depends(db)) -> list[dict[str, Any]]:
+    rows = conn.execute("SELECT * FROM flood_heatmap").fetchall()
+    result = []
+    for row in rows:
+        result.append({
+            "id": row["id"],
+            "zone": row["zone"],
+            "lat": row["lat"],
+            "lng": row["lng"],
+            "intensity": row["intensity"],
+            "polygon": json.loads(row["polygon"]),
+            "riskLevel": row["risk_level"]
+        })
+    return result
+
+
 @router.get("/industrial/factories")
 def factories(conn: sqlite3.Connection = Depends(db)) -> dict[str, list[dict[str, Any]]]:
     rows = conn.execute("SELECT * FROM factories ORDER BY name").fetchall()
     return {"factories": [_factory_from_row(row) for row in rows]}
+
+
+@router.post("/industrial/factories", status_code=201)
+def create_factory(
+    request: CreateFactoryRequest,
+    conn: sqlite3.Connection = Depends(db),
+) -> dict[str, Any]:
+    now = utc_now_iso()
+    factory_id = next_prefixed_id(conn, "factories", "F")
+    conn.execute(
+        """
+        INSERT INTO factories (
+            id, name, location, lat, lng, status, sensor_count, risk_level,
+            water_proximity, last_inspection, employees
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            factory_id, request.name, request.location, request.lat, request.lng,
+            request.status, 0, request.riskLevel, request.waterProximity,
+            now, request.employees
+        )
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM factories WHERE id = ?", (factory_id,)).fetchone()
+    return _factory_from_row(row)
 
 
 @router.get("/industrial/sensors")
@@ -348,6 +411,33 @@ def sensors(
     else:
         rows = conn.execute("SELECT * FROM sensors ORDER BY factory_id, name").fetchall()
     return {"sensors": [_sensor_from_row(row) for row in rows]}
+
+
+@router.post("/industrial/sensors", status_code=201)
+def create_sensor(
+    request: CreateSensorRequest,
+    conn: sqlite3.Connection = Depends(db),
+) -> dict[str, Any]:
+    now = utc_now_iso()
+    sensor_id = next_prefixed_id(conn, "sensors", "S")
+    conn.execute(
+        """
+        INSERT INTO sensors (
+            id, factory_id, name, type, value, unit, threshold, status, last_update
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        (
+            sensor_id, request.factoryId, request.name, request.type, request.value,
+            request.unit, request.threshold, request.status, now
+        )
+    )
+    conn.execute(
+        "UPDATE factories SET sensor_count = sensor_count + 1 WHERE id = ?",
+        (request.factoryId,)
+    )
+    conn.commit()
+    row = conn.execute("SELECT * FROM sensors WHERE id = ?", (sensor_id,)).fetchone()
+    return _sensor_from_row(row)
 
 
 @router.get("/subscription/status")

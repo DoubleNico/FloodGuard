@@ -8,7 +8,7 @@
     >
       <div
         v-if="modelValue"
-        class="fixed inset-0 z-100 flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-md"
+        class="fixed inset-0 z-[9999] flex items-center justify-center p-4 sm:p-6 bg-black/40 backdrop-blur-md"
         @click="onOverlayClick"
       >
         <Transition

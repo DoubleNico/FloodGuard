@@ -20,6 +20,7 @@
     </div>
 
     <div class="flex items-center gap-2 shrink-0">
+      <Button v-if="alert.status === 'draft'" variant="outline" color="secondary" size="sm" @click="$emit('updateStatus', alert.id, 'review')">Submit for Review</Button>
       <Button v-if="alert.status === 'review'" variant="solid" color="primary" size="sm" @click="$emit('updateStatus', alert.id, 'approved')">Approve</Button>
       <Button v-if="alert.status === 'approved'" variant="solid" color="danger" size="sm" icon-left="mdi:broadcast" @click="$emit('broadcast', alert)">Broadcast</Button>
       <Button v-if="alert.status !== 'closed'" variant="ghost" color="danger" size="sm" @click="$emit('updateStatus', alert.id, 'closed')">

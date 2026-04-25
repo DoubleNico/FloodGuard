@@ -24,7 +24,7 @@
         v-if="isRendered"
         ref="panelRef"
         :style="panelStyle"
-        class="z-50 popover-panel"
+        class="z-[10000] popover-panel"
         @mouseenter="onPanelEnter"
         @mouseleave="onPanelLeave"
         @click.stop

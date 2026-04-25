@@ -24,7 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   
   // Backend data
-  String _copernicusRisk = 'OFFLINE MODE';
+  String _copernicusRisk = 'LOADING...';
   String? _activeAlertMessage;
   StreamSubscription? _wsSubscription;
   Timer? _telemetryTimer;
@@ -59,25 +59,19 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
   Future<void> _fetchMapData() async {
     final data = await BackendService().fetchMapData(_workerPosition);
-    if (!mounted) return;
-
-    setState(() {
-      if (data == null) {
-        _copernicusRisk = 'OFFLINE MODE';
-      } else if (data['flood_warning']?['copernicus']?['error'] == null) {
-        _copernicusRisk = 'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
-      } else {
-        _copernicusRisk = 'LOW RISK (Mock)';
-      }
-    });
+    if (data != null && mounted) {
+      setState(() {
+        if (data['flood_warning']?['copernicus']?['error'] == null) {
+           _copernicusRisk = 'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
+        } else {
+           _copernicusRisk = 'LOW RISK (Mock)';
+        }
+      });
+    }
   }
 
   Future<void> _initBackend() async {
-    try {
-      await BackendService().initialize();
-    } catch (e) {
-      print("Backend init failed: $e");
-    }
+    await BackendService().initialize();
 
     // Initial data fetch
     _fetchMapData();

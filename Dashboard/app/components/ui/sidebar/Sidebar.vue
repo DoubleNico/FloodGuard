@@ -6,7 +6,7 @@
   />
 
   <aside
-    class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-(--border-color) bg-(--surface-primary) transition-all duration-300 ease-in-out md:static"
+    class="fixed inset-y-0 left-0 z-50 flex flex-col border-r border-(--border-color) bg-(--surface-primary) transition-all duration-300 ease-in-out md:relative"
     :class="[
       isMobileOpen
         ? 'translate-x-0 shadow-xl'

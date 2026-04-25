@@ -73,6 +73,7 @@
   border-radius: 16px;
   overflow: hidden;
   border: 1px solid var(--border-color);
+  z-index: 0;
 }
 
 .leaflet-container { background: var(--surface-secondary) !important; }

@@ -19,11 +19,10 @@
     </div>
 
     <button
-      v-if="!isCollapsed"
-      class="hidden md:flex h-6 w-6 items-center justify-center rounded-md text-(--icon-color) hover:bg-(--surface-secondary) transition-colors"
+      class="absolute -right-3 top-5 hidden md:flex h-6 w-6 items-center justify-center rounded-full border border-(--border-color) bg-(--surface-primary) text-(--icon-color) hover:bg-(--surface-secondary) transition-colors z-[100] shadow-sm cursor-pointer"
       @click="toggleCollapse"
     >
-      <Icon name="mdi:chevron-left" class="h-4 w-4" />
+      <Icon :name="isCollapsed ? 'mdi:chevron-right' : 'mdi:chevron-left'" class="h-4 w-4" />
     </button>
   </div>
 </template>

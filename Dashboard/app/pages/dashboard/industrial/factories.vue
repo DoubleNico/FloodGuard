@@ -1,8 +1,13 @@
 <template>
   <div class="space-y-6 max-w-[1400px] mx-auto">
-    <div>
-      <h1 class="text-2xl font-bold text-(--label-text) tracking-tight">Factory Monitoring</h1>
-      <p class="text-sm text-(--hint-text) mt-1">Detailed view of all monitored industrial facilities</p>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-(--label-text) tracking-tight">Factory Monitoring</h1>
+        <p class="text-sm text-(--hint-text) mt-1">Detailed view of all monitored industrial facilities</p>
+      </div>
+      <div>
+        <Button variant="solid" color="primary" icon-left="mdi:plus" @click="showAddModal = true">Add Factory</Button>
+      </div>
     </div>
 
     <DataTable :columns="columns" :data="factories" row-key="id">
@@ -32,6 +37,29 @@
         <span class="text-xs text-(--hint-text)">{{ new Date(value).toLocaleDateString() }}</span>
       </template>
     </DataTable>
+
+    <Modal v-model="showAddModal" title="Add New Factory" size="lg">
+      <Form class="space-y-4" @submit="handleAddFactory">
+        <Input v-model="newFactory.name" label="Factory Name" placeholder="e.g. Liberty Steel Galați" :required="true" />
+        <Input v-model="newFactory.location" label="Location" placeholder="e.g. Smârdan Industrial Area" :required="true" />
+        <div class="grid grid-cols-2 gap-4">
+          <Input v-model="newFactory.lat" label="Latitude" type="number" placeholder="45.4268" :required="true" />
+          <Input v-model="newFactory.lng" label="Longitude" type="number" placeholder="28.0551" :required="true" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <CustomSelect v-model="newFactory.status" label="Status" :options="statusOptions" :required="true" />
+          <CustomSelect v-model="newFactory.riskLevel" label="Risk Level" :options="riskOptions" :required="true" />
+        </div>
+        <div class="grid grid-cols-2 gap-4">
+          <Input v-model="newFactory.waterProximity" label="Water Proximity (meters)" type="number" placeholder="500" :required="true" />
+          <Input v-model="newFactory.employees" label="Employees" type="number" placeholder="2500" :required="true" />
+        </div>
+      </Form>
+      <template #footer="{ close }">
+        <Button variant="outline" color="secondary" @click="close">Cancel</Button>
+        <Button variant="solid" color="primary" @click="handleAddFactory">Add Factory</Button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -39,7 +67,43 @@
 import type { Column } from "~/types/Column";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
-const { factories, factoryStatusColor } = useIndustrial();
+const { factories, factoryStatusColor, createFactory } = useIndustrial();
+
+const showAddModal = ref(false);
+
+const newFactory = reactive({
+  name: "", location: "", lat: "", lng: "", status: "operational", riskLevel: "low", waterProximity: "", employees: "",
+});
+
+const statusOptions = [
+  { label: "Operational", value: "operational" },
+  { label: "Warning", value: "warning" },
+  { label: "Critical", value: "critical" },
+  { label: "Offline", value: "offline" },
+];
+
+const riskOptions = [
+  { label: "Low", value: "low" },
+  { label: "Moderate", value: "moderate" },
+  { label: "High", value: "high" },
+  { label: "Critical", value: "critical" },
+];
+
+const handleAddFactory = async () => {
+  if (!newFactory.name || !newFactory.location) return;
+  await createFactory({
+    name: newFactory.name,
+    location: newFactory.location,
+    lat: parseFloat(newFactory.lat),
+    lng: parseFloat(newFactory.lng),
+    status: newFactory.status as any,
+    riskLevel: newFactory.riskLevel as any,
+    waterProximity: parseInt(newFactory.waterProximity) || 0,
+    employees: parseInt(newFactory.employees) || 0,
+  });
+  showAddModal.value = false;
+  Object.assign(newFactory, { name: "", location: "", lat: "", lng: "", status: "operational", riskLevel: "low", waterProximity: "", employees: "" });
+};
 
 const columns: Column[] = [
   { key: "name", label: "Factory", width: "w-[280px]", sortable: true },

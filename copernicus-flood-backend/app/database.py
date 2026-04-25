@@ -139,6 +139,16 @@ def create_schema(conn: sqlite3.Connection) -> None:
             active_users INTEGER NOT NULL
         );
 
+        CREATE TABLE IF NOT EXISTS flood_heatmap (
+            id TEXT PRIMARY KEY,
+            zone TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            intensity REAL NOT NULL,
+            polygon TEXT NOT NULL,
+            risk_level TEXT NOT NULL
+        );
+
         CREATE TABLE IF NOT EXISTS mobile_users (
             id TEXT PRIMARY KEY,
             full_name TEXT NOT NULL,
@@ -543,6 +553,18 @@ def seed_database(conn: sqlite3.Connection) -> None:
         ) VALUES (1, 'operations', 47, 7, 12, 4)
         """
     )
+
+    if conn.execute("SELECT COUNT(*) FROM flood_heatmap").fetchone()[0] == 0:
+        heatmap_seed = [
+            ("HZ-01", "Port Industrial", 45.4268, 28.0551, 0.92, json.dumps([[45.428, 28.052], [45.425, 28.058], [45.423, 28.056], [45.426, 28.050]]), "critical"),
+            ("HZ-02", "Faleza Dunării", 45.4285, 28.0461, 0.65, json.dumps([[45.430, 28.044], [45.427, 28.048], [45.426, 28.045], [45.429, 28.042]]), "high"),
+            ("HZ-03", "Micro 17", 45.4215, 28.0195, 0.15, json.dumps([[45.423, 28.017], [45.420, 28.022], [45.419, 28.018], [45.422, 28.015]]), "low"),
+            ("HZ-04", "Țiglina I", 45.435, 28.031, 0.45, json.dumps([[45.437, 28.028], [45.433, 28.034], [45.432, 28.030], [45.436, 28.026]]), "moderate"),
+        ]
+        conn.executemany(
+            "INSERT INTO flood_heatmap (id, zone, lat, lng, intensity, polygon, risk_level) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            heatmap_seed
+        )
     conn.execute(
         """
         UPDATE subscription_status

@@ -50,87 +50,60 @@ const GALATI_ZONES = [
   "Dimitrie Cantemir",
 ];
 
-const generateMockAlerts = (): FloodAlert[] => {
-  const now = new Date();
-  return [
-    {
-      id: "ALR-001",
-      type: "flood",
-      severity: 4,
-      status: "published",
-      title: "Danube River Level Critical — Galați Sector",
-      message:
-        "Water levels at Galați monitoring station have exceeded 650cm. Immediate evacuation advisory for Port and Faleza Dunării zones. Citizens should proceed to designated safe locations.",
-      affectedAreas: ["Port", "Faleza Dunării", "Centru"],
-      createdAt: new Date(now.getTime() - 3600000 * 2),
-      updatedAt: new Date(now.getTime() - 3600000),
-      publishedAt: new Date(now.getTime() - 3600000),
-      createdBy: "Dispatcher Ionescu",
-      broadcastSent: true,
-      recipientCount: 12847,
-    },
-    {
-      id: "ALR-002",
-      type: "flash-flood",
-      severity: 3,
-      status: "approved",
-      title: "Flash Flood Warning — Micro 17-19",
-      message:
-        "Heavy rainfall forecast combined with saturated ground conditions. Moderate risk of localized flooding in low-lying residential areas.",
-      affectedAreas: ["Micro 17", "Micro 18", "Micro 19"],
-      createdAt: new Date(now.getTime() - 3600000 * 4),
-      updatedAt: new Date(now.getTime() - 3600000 * 3),
-      createdBy: "Dispatcher Popescu",
-      broadcastSent: false,
-      recipientCount: 0,
-    },
-    {
-      id: "ALR-003",
-      type: "storm",
-      severity: 2,
-      status: "review",
-      title: "Severe Weather Advisory — Greater Galați",
-      message:
-        "Meteorological services forecast sustained winds exceeding 70km/h with heavy precipitation over the next 12 hours.",
-      affectedAreas: ["Țiglina I", "Țiglina II", "Micro 38", "Micro 39"],
-      createdAt: new Date(now.getTime() - 3600000 * 6),
-      updatedAt: new Date(now.getTime() - 3600000 * 5),
-      createdBy: "System (Auto-detected)",
-      broadcastSent: false,
-      recipientCount: 0,
-    },
-    {
-      id: "ALR-004",
-      type: "flood",
-      severity: 5,
-      status: "closed",
-      title: "Danube Overflow — Siderurgiștilor Industrial Zone",
-      message:
-        "Critical flooding event resolved. All-clear issued for industrial sector. Post-incident damage assessment in progress.",
-      affectedAreas: ["Siderurgiștilor", "Port"],
-      createdAt: new Date(now.getTime() - 86400000 * 2),
-      updatedAt: new Date(now.getTime() - 86400000),
-      publishedAt: new Date(now.getTime() - 86400000 * 2),
-      closedAt: new Date(now.getTime() - 86400000),
-      createdBy: "Dispatcher Ionescu",
-      broadcastSent: true,
-      recipientCount: 8234,
-    },
-  ];
-};
+interface AlertApiRow {
+  id: string;
+  type: AlertType;
+  severity: AlertSeverity;
+  status: AlertStatus;
+  title: string;
+  message: string;
+  affectedAreas: string[];
+  createdAt: string;
+  updatedAt: string;
+  publishedAt: string | null;
+  closedAt: string | null;
+  createdBy: string;
+  broadcastSent: boolean;
+  recipientCount: number;
+}
+
+const parseAlert = (raw: AlertApiRow): FloodAlert => ({
+  ...raw,
+  createdAt: new Date(raw.createdAt),
+  updatedAt: new Date(raw.updatedAt),
+  publishedAt: raw.publishedAt ? new Date(raw.publishedAt) : undefined,
+  closedAt: raw.closedAt ? new Date(raw.closedAt) : undefined,
+});
 
 export const useAlerts = () => {
-  const alerts = useState<FloodAlert[]>("flood-alerts", () =>
-    generateMockAlerts()
-  );
+  const { get, post, patch } = useApi();
+
+  const alerts = useState<FloodAlert[]>("flood-alerts", () => []);
+  const loading = useState("alerts-loading", () => false);
   const globalAlarmActive = useState<boolean>(
     "global-alarm-active",
-    () => true
+    () => false
   );
   const lastBroadcastTime = useState<Date | null>(
     "last-broadcast-time",
-    () => new Date(Date.now() - 3600000)
+    () => null
   );
+
+  const refreshAlerts = async () => {
+    loading.value = true;
+    try {
+      const data = await get<{ alerts: AlertApiRow[] }>("/api/v1/alerts");
+      alerts.value = data.alerts.map(parseAlert);
+      const hasPublished = alerts.value.some((a) => a.status === "published");
+      if (hasPublished && !globalAlarmActive.value) {
+        globalAlarmActive.value = true;
+      }
+    } catch {
+      // keep existing data on error
+    } finally {
+      loading.value = false;
+    }
+  };
 
   const activeAlerts = computed(() =>
     alerts.value.filter(
@@ -156,56 +129,36 @@ export const useAlerts = () => {
     return Math.max(...active.map((a) => a.severity));
   });
 
-  const createAlert = (
-    data: Omit<
-      FloodAlert,
-      | "id"
-      | "createdAt"
-      | "updatedAt"
-      | "broadcastSent"
-      | "recipientCount"
-      | "status"
-    >
+  const createAlert = async (
+    data: {
+      type: AlertType;
+      severity: AlertSeverity;
+      title: string;
+      message: string;
+      affectedAreas: string[];
+      createdBy: string;
+    }
   ) => {
-    const id = `ALR-${String(alerts.value.length + 1).padStart(3, "0")}`;
-    const now = new Date();
-    alerts.value.unshift({
-      ...data,
-      id,
-      status: "draft",
-      createdAt: now,
-      updatedAt: now,
-      broadcastSent: false,
-      recipientCount: 0,
+    await post("/api/v1/alerts", {
+      type: data.type,
+      severity: data.severity,
+      title: data.title,
+      message: data.message,
+      affectedAreas: data.affectedAreas,
     });
-    return id;
+    await refreshAlerts();
   };
 
-  const updateAlertStatus = (id: string, status: AlertStatus) => {
-    const alert = alerts.value.find((a) => a.id === id);
-    if (alert) {
-      alert.status = status;
-      alert.updatedAt = new Date();
-      if (status === "published") {
-        alert.publishedAt = new Date();
-      }
-      if (status === "closed") {
-        alert.closedAt = new Date();
-      }
-    }
+  const updateAlertStatus = async (id: string, status: AlertStatus) => {
+    await patch(`/api/v1/alerts/${id}/status`, { status });
+    await refreshAlerts();
   };
 
-  const broadcastGlobalAlarm = (alertId: string) => {
-    const alert = alerts.value.find((a) => a.id === alertId);
-    if (alert) {
-      alert.broadcastSent = true;
-      alert.recipientCount = Math.floor(Math.random() * 15000) + 5000;
-      alert.status = "published";
-      alert.publishedAt = new Date();
-      alert.updatedAt = new Date();
-      globalAlarmActive.value = true;
-      lastBroadcastTime.value = new Date();
-    }
+  const broadcastGlobalAlarm = async (alertId: string) => {
+    await post(`/api/v1/alerts/${alertId}/broadcast`);
+    globalAlarmActive.value = true;
+    lastBroadcastTime.value = new Date();
+    await refreshAlerts();
   };
 
   const dismissGlobalAlarm = () => {
@@ -242,8 +195,13 @@ export const useAlerts = () => {
     }
   };
 
+  if (import.meta.client && alerts.value.length === 0) {
+    refreshAlerts();
+  }
+
   return {
     alerts,
+    loading,
     activeAlerts,
     publishedAlerts,
     pendingReview,
@@ -258,5 +216,6 @@ export const useAlerts = () => {
     dismissGlobalAlarm,
     severityLabel,
     severityColor,
+    refreshAlerts,
   };
 };

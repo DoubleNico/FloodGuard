@@ -12,21 +12,63 @@
       <StatCard icon="mdi:earth" label="NDWI Zones Monitored" :value="ndwiReadings.length" glow-color="info" icon-bg="#3B82F6" class="animate-fade-up stagger-4" />
     </div>
 
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card class="p-5">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h2 class="text-lg font-semibold text-(--label-text)">Water Level Monitoring</h2>
-            <p class="text-xs text-(--hint-text) flex items-center gap-1 mt-0.5">
-              <Icon name="mdi:satellite-variant" class="h-3 w-3" /> Copernicus Sentinel-1 SAR
-            </p>
-          </div>
-          <Badge variant="outline">Live</Badge>
+    <Card class="p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-(--label-text)">Water Level Stations & Flood Forecast</h2>
+          <p class="text-xs text-(--hint-text) flex items-center gap-1 mt-0.5">
+            <Icon name="mdi:satellite-variant" class="h-3 w-3" /> Copernicus Sentinel-1 SAR — Galați Monitoring Network
+          </p>
         </div>
-        <div class="space-y-5">
-          <div v-for="wl in waterLevels" :key="wl.station" class="space-y-2">
+        <Badge variant="outline" class="alarm-pulse">Live Feed</Badge>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-5 gap-6">
+        <div class="lg:col-span-3 h-[400px] map-container">
+          <ClientOnly>
+            <LMap :zoom="12" :center="[45.4353, 28.0397]" :use-global-leaflet="false" :options="{ zoomControl: true, attributionControl: false }">
+              <LTileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" layer-type="base" name="CartoDB Dark" />
+              <LMarker v-for="wl in waterLevels" :key="wl.station" :lat-lng="[wl.lat, wl.lng]">
+                <LIcon :icon-size="[48, 48]" :icon-anchor="[24, 24]" class-name="">
+                  <div class="flex flex-col items-center">
+                    <div class="h-12 w-12 rounded-xl flex flex-col items-center justify-center shadow-lg border-2" :style="{ background: wl.level >= wl.criticalLevel ? '#7F1D1D' : wl.level >= wl.warningLevel ? '#92400E' : '#14532D', borderColor: wl.level >= wl.criticalLevel ? '#EF4444' : wl.level >= wl.warningLevel ? '#F59E0B' : '#22C55E' }">
+                      <span class="text-white text-xs font-bold leading-none">{{ Math.round(wl.level) }}</span>
+                      <span class="text-white/60 text-[8px]">cm</span>
+                    </div>
+                  </div>
+                </LIcon>
+                <LPopup>
+                  <div class="p-2 min-w-[180px]">
+                    <h3 class="font-bold text-sm text-gray-900 mb-1">{{ wl.station }}</h3>
+                    <div class="space-y-1 text-xs">
+                      <div class="flex justify-between"><span class="text-gray-500">Level:</span><span class="font-bold" :style="{ color: wl.level >= wl.criticalLevel ? '#EF4444' : wl.level >= wl.warningLevel ? '#F59E0B' : '#22C55E' }">{{ Math.round(wl.level) }}cm</span></div>
+                      <div class="flex justify-between"><span class="text-gray-500">Warning:</span><span>{{ wl.warningLevel }}cm</span></div>
+                      <div class="flex justify-between"><span class="text-gray-500">Critical:</span><span>{{ wl.criticalLevel }}cm</span></div>
+                      <div class="flex justify-between"><span class="text-gray-500">Trend:</span><span class="capitalize font-medium">{{ wl.trend }}</span></div>
+                    </div>
+                  </div>
+                </LPopup>
+              </LMarker>
+              <LMarker v-for="hz in floodHeatmap" :key="hz.id" :lat-lng="[hz.lat, hz.lng]">
+                <LIcon :icon-size="[hz.radius / 5, hz.radius / 5]" :icon-anchor="[hz.radius / 10, hz.radius / 10]" class-name="">
+                  <div class="rounded-full" :style="{
+                    width: `${hz.radius / 5}px`,
+                    height: `${hz.radius / 5}px`,
+                    background: `radial-gradient(circle, ${heatmapIntensityColor(hz.intensity)}60, ${heatmapIntensityColor(hz.intensity)}10, transparent)`,
+                  }" />
+                </LIcon>
+              </LMarker>
+            </LMap>
+            <template #fallback>
+              <div class="h-full flex items-center justify-center bg-(--surface-secondary) rounded-[20px]">
+                <Icon name="mdi:map" class="h-8 w-8 text-(--hint-text)" />
+              </div>
+            </template>
+          </ClientOnly>
+        </div>
+        <div class="lg:col-span-2 space-y-4">
+          <div v-for="wl in waterLevels" :key="wl.station" class="space-y-2 p-3 rounded-xl border border-(--border-color) bg-(--surface-secondary)/30">
             <div class="flex items-center justify-between">
-              <span class="text-sm font-medium text-(--label-text)">{{ wl.station }}</span>
+              <span class="text-sm font-medium text-(--label-text)">{{ wl.station.replace('Galați — ', '') }}</span>
               <div class="flex items-center gap-2">
                 <Icon :name="wl.trend === 'rising' ? 'mdi:trending-up' : wl.trend === 'falling' ? 'mdi:trending-down' : 'mdi:trending-neutral'" class="h-4 w-4" :class="wl.trend === 'rising' ? 'text-red-500' : wl.trend === 'falling' ? 'text-green-500' : 'text-(--hint-text)'" />
                 <span class="text-xl font-bold" :class="wl.level >= wl.criticalLevel ? 'text-red-500' : wl.level >= wl.warningLevel ? 'text-amber-500' : 'text-green-500'">
@@ -47,8 +89,10 @@
             </div>
           </div>
         </div>
-      </Card>
+      </div>
+    </Card>
 
+    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
       <Card class="p-5">
         <div class="flex items-center justify-between mb-4">
           <div>
@@ -67,31 +111,6 @@
               </div>
             </template>
           </ClientOnly>
-        </div>
-      </Card>
-    </div>
-
-    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <Card class="p-5">
-        <div class="flex items-center justify-between mb-4">
-          <div>
-            <h2 class="text-lg font-semibold text-(--label-text)">NDWI Analysis</h2>
-            <p class="text-xs text-(--hint-text) flex items-center gap-1 mt-0.5">
-              <Icon name="mdi:satellite-variant" class="h-3 w-3" /> Copernicus Sentinel-2 MSI
-            </p>
-          </div>
-        </div>
-        <div class="grid grid-cols-2 gap-3">
-          <div v-for="nr in ndwiReadings" :key="nr.zone" class="p-3 rounded-xl border border-(--border-color) bg-(--surface-secondary)/30 hover:bg-(--surface-secondary)/60 transition-colors">
-            <div class="flex items-center justify-between mb-2">
-              <span class="text-xs font-medium text-(--label-text) truncate">{{ nr.zone }}</span>
-              <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full" :style="{ background: `${ndwiRiskColor(nr.risk)}20`, color: ndwiRiskColor(nr.risk) }">{{ nr.risk }}</span>
-            </div>
-            <p class="text-2xl font-bold tracking-tight" :style="{ color: ndwiRiskColor(nr.risk) }">{{ nr.value.toFixed(2) }}</p>
-            <div class="water-gauge mt-2">
-              <div class="water-gauge-fill" :style="{ width: `${nr.value * 100}%`, background: ndwiRiskColor(nr.risk) }" />
-            </div>
-          </div>
         </div>
       </Card>
 
@@ -129,6 +148,59 @@
         </div>
       </Card>
     </div>
+
+    <Card class="p-5">
+      <div class="flex items-center justify-between mb-4">
+        <div>
+          <h2 class="text-lg font-semibold text-(--label-text)">NDWI Analysis & Risk Map</h2>
+          <p class="text-xs text-(--hint-text) flex items-center gap-1 mt-0.5">
+            <Icon name="mdi:satellite-variant" class="h-3 w-3" /> Copernicus Sentinel-2 MSI
+          </p>
+        </div>
+      </div>
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div class="grid grid-cols-2 gap-3 lg:col-span-1 h-fit">
+          <div v-for="nr in ndwiReadings" :key="nr.zone" class="p-3 rounded-xl border border-(--border-color) bg-(--surface-secondary)/30 hover:bg-(--surface-secondary)/60 transition-colors">
+            <div class="flex items-center justify-between mb-2">
+              <span class="text-xs font-medium text-(--label-text) truncate">{{ nr.zone }}</span>
+              <span class="text-[10px] font-bold uppercase px-1.5 py-0.5 rounded-full" :style="{ background: `${ndwiRiskColor(nr.risk)}20`, color: ndwiRiskColor(nr.risk) }">{{ nr.risk }}</span>
+            </div>
+            <p class="text-2xl font-bold tracking-tight" :style="{ color: ndwiRiskColor(nr.risk) }">{{ nr.value.toFixed(2) }}</p>
+            <div class="water-gauge mt-2">
+              <div class="water-gauge-fill" :style="{ width: `${nr.value * 100}%`, background: ndwiRiskColor(nr.risk) }" />
+            </div>
+          </div>
+        </div>
+        <div class="lg:col-span-2 h-[400px] map-container">
+          <ClientOnly>
+            <LMap :zoom="13" :center="[45.4353, 28.0397]" :use-global-leaflet="false" :options="{ zoomControl: true, attributionControl: false }">
+              <LTileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" layer-type="base" name="CartoDB Dark" />
+              <LMarker v-for="nr in ndwiReadings" :key="nr.zone" :lat-lng="[nr.lat, nr.lng]">
+                <LIcon :icon-size="[32, 32]" :icon-anchor="[16, 32]" class-name="">
+                  <div class="flex flex-col items-center">
+                    <div class="h-8 w-8 rounded-full flex items-center justify-center shadow-lg border-2 border-white" :style="{ background: ndwiRiskColor(nr.risk) }">
+                      <span class="text-white text-xs font-bold">{{ Math.round(nr.value * 100) }}</span>
+                    </div>
+                  </div>
+                </LIcon>
+                <LPopup>
+                  <div class="p-2 min-w-[150px]">
+                    <h3 class="font-bold text-sm text-gray-900 mb-1">{{ nr.zone }}</h3>
+                    <p class="text-xs text-gray-600 mb-1">NDWI Value: <strong :style="{ color: ndwiRiskColor(nr.risk) }">{{ nr.value.toFixed(2) }}</strong></p>
+                    <p class="text-xs text-gray-500 uppercase font-semibold">{{ nr.risk }} RISK</p>
+                  </div>
+                </LPopup>
+              </LMarker>
+            </LMap>
+            <template #fallback>
+              <div class="h-full flex items-center justify-center bg-(--surface-secondary) rounded-[20px]">
+                <Icon name="mdi:map" class="h-8 w-8 text-(--hint-text)" />
+              </div>
+            </template>
+          </ClientOnly>
+        </div>
+      </div>
+    </Card>
   </div>
 </template>
 
@@ -140,7 +212,7 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, Tooltip, Legend);
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
 
-const { waterLevels, precipitation, galileoSatellites, ndwiReadings, operationalSatellites, averageSignal, ndwiRiskColor, startSimulation, stopSimulation } = useSatelliteData();
+const { waterLevels, precipitation, galileoSatellites, ndwiReadings, floodHeatmap, operationalSatellites, averageSignal, ndwiRiskColor, heatmapIntensityColor, startSimulation, stopSimulation } = useSatelliteData();
 
 const chartData = computed(() => ({
   labels: precipitation.value.map((p) => p.date),

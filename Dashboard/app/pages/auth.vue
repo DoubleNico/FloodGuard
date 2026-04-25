@@ -39,25 +39,6 @@
             :error="formErrors.password"
           />
 
-          <div>
-            <label class="text-sm font-medium text-(--label-text) mb-2 block">Role</label>
-            <div class="grid grid-cols-3 gap-2">
-              <button
-                v-for="role in roles"
-                :key="role.value"
-                type="button"
-                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer"
-                :class="form.role === role.value
-                  ? 'border-blue-500 bg-blue-500/10 shadow-sm'
-                  : 'border-(--border-color) bg-(--surface-secondary)/50 hover:border-(--border-color) hover:bg-(--surface-secondary)'"
-                @click="form.role = role.value"
-              >
-                <Icon :name="role.icon" class="h-5 w-5" :class="form.role === role.value ? 'text-blue-500' : 'text-(--icon-color)'" />
-                <span class="text-xs font-medium" :class="form.role === role.value ? 'text-blue-500' : 'text-(--label-text)'">{{ role.label }}</span>
-              </button>
-            </div>
-          </div>
-
           <p v-if="authError" class="text-sm text-(--input-error-text)">
             {{ authError }}
           </p>
@@ -87,13 +68,19 @@
 
 <script setup lang="ts">
 import {
-  INTERNAL_AUTH_COOKIE,
-  isValidInternalCredentials,
+  AUTH_TOKEN_COOKIE,
+  AUTH_USER_COOKIE,
   sanitizeRedirectPath,
 } from "~/utils/internalAuth";
 
 const route = useRoute();
-const sessionCookie = useCookie<string | null>(INTERNAL_AUTH_COOKIE, {
+const { post } = useApi();
+const tokenCookie = useCookie<string | null>(AUTH_TOKEN_COOKIE, {
+  path: "/",
+  sameSite: "lax",
+  maxAge: 60 * 60 * 24,
+});
+const userCookie = useCookie<string | null>(AUTH_USER_COOKIE, {
   path: "/",
   sameSite: "lax",
   maxAge: 60 * 60 * 24,
@@ -107,7 +94,6 @@ const authError = ref("");
 const form = reactive({
   username: "",
   password: "",
-  role: "dispatcher" as "dispatcher" | "industrial" | "admin",
 });
 
 const formErrors = reactive({
@@ -115,13 +101,16 @@ const formErrors = reactive({
   password: "",
 });
 
-const roles = [
-  { value: "dispatcher", label: "Dispatcher", icon: "mdi:shield-alert" },
-  { value: "industrial", label: "Industrial", icon: "mdi:factory" },
-  { value: "admin", label: "Admin", icon: "mdi:cog" },
-];
-
 const redirectPath = computed(() => sanitizeRedirectPath(route.query.redirect));
+
+interface LoginResponse {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    role: "dispatcher" | "industrial" | "admin";
+  };
+}
 
 const handleLogin = async () => {
   formErrors.username = "";
@@ -142,19 +131,23 @@ const handleLogin = async () => {
 
   isLoading.value = true;
 
-  const isValid = isValidInternalCredentials(form.username, form.password);
+  try {
+    const response = await post<LoginResponse>("/api/v1/auth/login", {
+      username: form.username.trim(),
+      password: form.password,
+    });
 
-  if (!isValid) {
-    authError.value = "Invalid username or password.";
+    tokenCookie.value = response.token;
+    userCookie.value = response.user.username;
+    setRole(response.user.role);
+
+    const target = redirectPath.value === "/" ? "/dashboard" : redirectPath.value;
+    await navigateTo(target);
+  } catch (err: any) {
+    const detail = err?.data?.detail || err?.message || "Login failed.";
+    authError.value = typeof detail === "string" ? detail : "Invalid username or password.";
+  } finally {
     isLoading.value = false;
-    return;
   }
-
-  sessionCookie.value = form.username.trim();
-  setRole(form.role);
-
-  const target = redirectPath.value === "/" ? "/dashboard" : redirectPath.value;
-  await navigateTo(target);
-  isLoading.value = false;
 };
 </script>

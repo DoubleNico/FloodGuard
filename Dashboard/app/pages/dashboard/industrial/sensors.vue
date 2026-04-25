@@ -1,8 +1,13 @@
 <template>
   <div class="space-y-6 max-w-[1400px] mx-auto">
-    <div>
-      <h1 class="text-2xl font-bold text-(--label-text) tracking-tight">Sensor Monitoring</h1>
-      <p class="text-sm text-(--hint-text) mt-1">Real-time telemetry from all connected devices</p>
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      <div>
+        <h1 class="text-2xl font-bold text-(--label-text) tracking-tight">Sensor Monitoring</h1>
+        <p class="text-sm text-(--hint-text) mt-1">Real-time telemetry from all connected devices</p>
+      </div>
+      <div>
+        <Button variant="solid" color="primary" icon-left="mdi:plus" @click="showAddModal = true">Add Sensor</Button>
+      </div>
     </div>
 
     <div class="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -41,6 +46,26 @@
         <span class="text-xs text-(--hint-text)">{{ new Date(value).toLocaleTimeString() }}</span>
       </template>
     </DataTable>
+
+    <Modal v-model="showAddModal" title="Add New Sensor" size="lg">
+      <Form class="space-y-4" @submit="handleAddSensor">
+        <CustomSelect v-model="newSensor.factoryId" label="Factory" :options="factories.map(f => ({ label: f.name, value: f.id }))" :required="true" />
+        <Input v-model="newSensor.name" label="Sensor Name" placeholder="e.g. WL-Main-01" :required="true" />
+        <div class="grid grid-cols-2 gap-4">
+          <CustomSelect v-model="newSensor.type" label="Type" :options="typeOptions" :required="true" />
+          <CustomSelect v-model="newSensor.status" label="Status" :options="statusOptions" :required="true" />
+        </div>
+        <div class="grid grid-cols-3 gap-4">
+          <Input v-model="newSensor.value" label="Current Value" type="number" placeholder="0" :required="true" />
+          <Input v-model="newSensor.threshold" label="Threshold" type="number" placeholder="100" :required="true" />
+          <Input v-model="newSensor.unit" label="Unit" placeholder="e.g. cm" :required="true" />
+        </div>
+      </Form>
+      <template #footer="{ close }">
+        <Button variant="outline" color="secondary" @click="close">Cancel</Button>
+        <Button variant="solid" color="primary" @click="handleAddSensor">Add Sensor</Button>
+      </template>
+    </Modal>
   </div>
 </template>
 
@@ -48,7 +73,43 @@
 import type { Column } from "~/types/Column";
 
 definePageMeta({ layout: "dashboard", middleware: "auth" });
-const { sensors, factories, criticalSensors, sensorStatusColor } = useIndustrial();
+const { sensors, factories, criticalSensors, sensorStatusColor, createSensor } = useIndustrial();
+
+const showAddModal = ref(false);
+
+const newSensor = reactive({
+  factoryId: "", name: "", type: "water-level", value: "", unit: "", threshold: "", status: "online",
+});
+
+const typeOptions = [
+  { label: "Water Level", value: "water-level" },
+  { label: "Pressure", value: "pressure" },
+  { label: "Humidity", value: "humidity" },
+  { label: "Temperature", value: "temperature" },
+  { label: "Structural", value: "structural" },
+];
+
+const statusOptions = [
+  { label: "Online", value: "online" },
+  { label: "Warning", value: "warning" },
+  { label: "Critical", value: "critical" },
+  { label: "Offline", value: "offline" },
+];
+
+const handleAddSensor = async () => {
+  if (!newSensor.name || !newSensor.factoryId) return;
+  await createSensor({
+    factoryId: newSensor.factoryId,
+    name: newSensor.name,
+    type: newSensor.type as any,
+    value: parseFloat(newSensor.value) || 0,
+    unit: newSensor.unit,
+    threshold: parseFloat(newSensor.threshold) || 0,
+    status: newSensor.status as any,
+  });
+  showAddModal.value = false;
+  Object.assign(newSensor, { factoryId: "", name: "", type: "water-level", value: "", unit: "", threshold: "", status: "online" });
+};
 
 const factoryName = (id: string) => factories.value.find((f) => f.id === id)?.name || id;
 

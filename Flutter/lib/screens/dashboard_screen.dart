@@ -235,14 +235,12 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final prefs = await SharedPreferences.getInstance();
     final hasIssues = prefs.getBool('hasMobilityIssues') ?? false;
     final gravity = prefs.getString('mobilityGravity') ?? 'Low';
-    
-    Map<String, dynamic>? mobility;
-    if (hasIssues) {
-      mobility = {
-        "has_issues": true,
-        "gravity": gravity
-      };
-    }
+
+    final mobility = {
+      "has_issues": hasIssues,
+      "gravity": gravity,
+      "level": gravity,
+    };
 
     return await BackendService().triggerManDown(_workerPosition, mobilityInfo: mobility);
   }

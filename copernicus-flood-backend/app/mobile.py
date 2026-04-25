@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import sqlite3
 from collections.abc import Iterator
 from typing import Any, Literal
@@ -243,9 +244,12 @@ async def trigger_alert(
     user_id = request.user_id or token_payload.get("id")
     if not user_id:
         raise HTTPException(status_code=401, detail="Token does not include a user id")
-    _get_mobile_user_or_404(conn, str(user_id))
+    mobile_user = _get_mobile_user_or_404(conn, str(user_id))
     now = utc_now_iso()
     trigger_id = next_prefixed_id(conn, "emergency_triggers", "EMG")
+    worker_name = request.user_name or mobile_user["full_name"]
+    mobility_info = request.mobility_info or _mobility_info_from_user(mobile_user)
+    mobility_json = json.dumps(mobility_info) if mobility_info else None
     conn.execute(
         """
         INSERT INTO emergency_triggers (id, user_id, user_name, mobility_info, lat, lng, message, created_at, acknowledged)
@@ -254,8 +258,8 @@ async def trigger_alert(
         (
             trigger_id,
             str(user_id),
-            request.user_name,
-            json.dumps(request.mobility_info) if request.mobility_info else None,
+            worker_name,
+            mobility_json,
             request.current_location.lat,
             request.current_location.lng,
             request.message,
@@ -264,12 +268,8 @@ async def trigger_alert(
     )
     alert_id = next_prefixed_id(conn, "alerts", "ALR")
     affected_area = f"{request.current_location.lat:.5f},{request.current_location.lng:.5f}"
-    worker_name = request.user_name or "Unknown Worker"
-    mobility_json = json.dumps(request.mobility_info) if request.mobility_info else None
-    mobility_text = ""
-    if request.mobility_info and request.mobility_info.get("has_issues"):
-        gravity = request.mobility_info.get("gravity", "Unknown")
-        mobility_text = f" | Mobility: {gravity}"
+    mobility_level = _mobility_level(mobility_info)
+    mobility_text = f" | Mobility: {mobility_level}" if mobility_level else ""
     alert_title = f"SOS: {worker_name}{mobility_text}"
     conn.execute(
         """
@@ -308,8 +308,8 @@ async def trigger_alert(
             **payload,
             "location": request.current_location.model_dump(),
             "user_id": str(user_id),
-            "user_name": request.user_name,
-            "mobility_info": request.mobility_info,
+            "user_name": worker_name,
+            "mobility_info": mobility_info,
         },
     )
     return payload
@@ -352,6 +352,37 @@ def _mobile_user_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "primary_location": row["primary_location"],
         "safety_level": row["safety_level"],
     }
+
+
+def _mobility_info_from_user(user: dict[str, Any]) -> dict[str, Any]:
+    safety_level = int(user.get("safety_level") or 0)
+    return {
+        "has_issues": safety_level >= 2,
+        "safety_level": safety_level,
+        "level": _safety_level_label(safety_level),
+    }
+
+
+def _safety_level_label(safety_level: int) -> str:
+    labels = {
+        0: "Safe",
+        1: "Moderate",
+        2: "At Risk",
+        3: "High Risk",
+    }
+    return labels.get(safety_level, "Unknown")
+
+
+def _mobility_level(mobility_info: dict[str, Any] | None) -> str | None:
+    if not mobility_info:
+        return None
+    level = mobility_info.get("level") or mobility_info.get("gravity")
+    if level:
+        return str(level)
+    safety_level = mobility_info.get("safety_level")
+    if isinstance(safety_level, int):
+        return _safety_level_label(safety_level)
+    return None
 
 
 def _require_bearer_token(authorization: str | None, settings: Settings) -> dict[str, Any]:

@@ -6,7 +6,8 @@ export type AlertStatus =
   | "approved"
   | "published"
   | "updated"
-  | "closed";
+  | "closed"
+  | "accidental";
 
 export interface FloodAlert {
   id: string;
@@ -73,10 +74,14 @@ interface AlertApiRow {
 
 const parseAlert = (raw: AlertApiRow): FloodAlert => {
   let mobility = raw.mobility_info;
-  if (typeof mobility === 'string') {
-    try { mobility = JSON.parse(mobility); } catch (e) { mobility = null; }
+  if (typeof mobility === "string") {
+    try {
+      mobility = JSON.parse(mobility);
+    } catch {
+      mobility = null;
+    }
   }
-  
+
   return {
     ...raw,
     createdAt: new Date(raw.createdAt),
@@ -120,7 +125,10 @@ export const useAlerts = () => {
 
   const activeAlerts = computed(() =>
     alerts.value.filter(
-      (a) => a.status !== "closed" && a.status !== "draft"
+      (a) =>
+        a.status !== "closed" &&
+        a.status !== "draft" &&
+        a.status !== "accidental"
     )
   );
 
@@ -130,6 +138,10 @@ export const useAlerts = () => {
 
   const pendingReview = computed(() =>
     alerts.value.filter((a) => a.status === "review")
+  );
+
+  const accidentalAlerts = computed(() =>
+    alerts.value.filter((a) => a.status === "accidental")
   );
 
   const totalRecipients = computed(() =>
@@ -218,6 +230,7 @@ export const useAlerts = () => {
     activeAlerts,
     publishedAlerts,
     pendingReview,
+    accidentalAlerts,
     totalRecipients,
     highestSeverity,
     globalAlarmActive,

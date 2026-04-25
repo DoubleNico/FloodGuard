@@ -10,6 +10,7 @@ class BackendService {
   BackendService._internal();
 
   final String baseUrl = 'http://10.0.2.2:8000/api';
+  final String apiV1Url = 'http://10.0.2.2:8000/api/v1';
   final String wsUrl = 'ws://10.0.2.2:8000/api/v1/stream';
 
   String? _token;
@@ -192,23 +193,22 @@ class BackendService {
 
   Future<void> cancelAlert(String alertId) async {
     try {
-      // First update the message to "Accidental Detection"
+      // Mark the dispatch alert as accidental instead of closing it silently.
       await http.patch(
-        Uri.parse('$baseUrl/alerts/$alertId/message'),
+        Uri.parse('$apiV1Url/alerts/$alertId/message'),
         headers: {
           "Content-Type": "application/json",
           if (_token != null) "Authorization": "Bearer $_token",
         },
-        body: jsonEncode({"message": "Accidental Detection — Worker confirmed safe."}),
+        body: jsonEncode({"message": "Accidental alert: worker confirmed safe from the mobile app."}),
       );
-      // Then close the alert
       await http.patch(
-        Uri.parse('$baseUrl/alerts/$alertId/status'),
+        Uri.parse('$apiV1Url/alerts/$alertId/status'),
         headers: {
           "Content-Type": "application/json",
           if (_token != null) "Authorization": "Bearer $_token",
         },
-        body: jsonEncode({"status": "closed"}),
+        body: jsonEncode({"status": "accidental"}),
       );
     } catch (e) {
       print("Cancel alert error: $e");

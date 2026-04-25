@@ -18,7 +18,7 @@ router = APIRouter(prefix="/api/v1", tags=["Hydralis"])
 
 
 AlertType = Literal["flood", "flash-flood", "storm", "evacuation"]
-AlertStatus = Literal["draft", "review", "approved", "published", "updated", "closed"]
+AlertStatus = Literal["draft", "review", "approved", "published", "updated", "closed", "accidental"]
 LocationType = Literal["shelter", "assembly-point", "medical", "supply-depot"]
 LocationStatus = Literal["open", "filling", "full", "closed"]
 FactoryStatus = Literal["operational", "warning", "critical", "offline"]
@@ -203,7 +203,7 @@ async def update_alert_status(
 ) -> dict[str, Any]:
     _get_alert_or_404(conn, alert_id)
     now = utc_now_iso()
-    closed_at = now if request.status == "closed" else None
+    closed_at = now if request.status in {"closed", "accidental"} else None
     conn.execute(
         "UPDATE alerts SET status = ?, updated_at = ?, closed_at = COALESCE(?, closed_at) WHERE id = ?",
         (request.status, now, closed_at, alert_id),

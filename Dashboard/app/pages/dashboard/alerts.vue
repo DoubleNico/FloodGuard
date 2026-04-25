@@ -48,6 +48,13 @@
         icon-bg="#F59E0B"
       />
       <StatCard
+        icon="mdi:shield-check"
+        label="Accidental"
+        :value="accidentalAlerts.length"
+        glow-color="success"
+        icon-bg="#22C55E"
+      />
+      <StatCard
         icon="mdi:broadcast"
         label="Broadcasts Sent"
         :value="publishedAlerts.length"
@@ -68,6 +75,7 @@
         <TabsTrigger value="all">All Alerts</TabsTrigger>
         <TabsTrigger value="published">Published</TabsTrigger>
         <TabsTrigger value="review">Pending Review</TabsTrigger>
+        <TabsTrigger value="accidental">Accidental</TabsTrigger>
         <TabsTrigger value="closed">Closed</TabsTrigger>
       </TabsList>
 
@@ -97,6 +105,17 @@
         <div class="space-y-3 mt-4">
           <AlertRow
             v-for="alert in pendingReview"
+            :key="alert.id"
+            :alert="alert"
+            @broadcast="onBroadcast"
+            @update-status="onUpdateStatus"
+          />
+        </div>
+      </TabsContent>
+      <TabsContent value="accidental">
+        <div class="space-y-3 mt-4">
+          <AlertRow
+            v-for="alert in accidentalAlerts"
             :key="alert.id"
             :alert="alert"
             @broadcast="onBroadcast"
@@ -227,6 +246,7 @@ const {
   activeAlerts,
   publishedAlerts,
   pendingReview,
+  accidentalAlerts,
   totalRecipients,
   galatiZones,
   createAlert,

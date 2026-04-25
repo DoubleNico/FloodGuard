@@ -1,10 +1,18 @@
 from __future__ import annotations
 
+import asyncio
 from pathlib import Path
 
 from app.config import Settings
 from app.database import connect, initialize_database, next_prefixed_id
-from app.hydralis import _alert_from_row, _create_token, _decode_token, _password_hash
+from app.hydralis import (
+    UpdateAlertStatusRequest,
+    _alert_from_row,
+    _create_token,
+    _decode_token,
+    _password_hash,
+    update_alert_status,
+)
 
 
 def test_initialize_database_seeds_core_data(tmp_path: Path) -> None:
@@ -42,6 +50,17 @@ def test_alert_row_maps_to_api_shape(tmp_path: Path) -> None:
     assert alert["affectedAreas"]
     assert "createdAt" in alert
     assert "broadcastSent" in alert
+
+
+def test_alert_can_be_marked_accidental(tmp_path: Path) -> None:
+    settings = Settings(database_path=str(tmp_path / "hydralis-test.db"))
+    initialize_database(settings)
+
+    with connect(settings) as conn:
+        alert = asyncio.run(update_alert_status("ALR-001", UpdateAlertStatusRequest(status="accidental"), conn))
+
+    assert alert["status"] == "accidental"
+    assert alert["closedAt"] is not None
 
 
 def test_demo_auth_hash_and_token() -> None:

@@ -1,7 +1,39 @@
 import 'package:flutter/material.dart';
+import 'package:audioplayers/audioplayers.dart';
 
-class AlertScreen extends StatelessWidget {
+class AlertScreen extends StatefulWidget {
   const AlertScreen({super.key});
+
+  @override
+  State<AlertScreen> createState() => _AlertScreenState();
+}
+
+class _AlertScreenState extends State<AlertScreen> {
+  final AudioPlayer _audioPlayer = AudioPlayer();
+
+  @override
+  void initState() {
+    super.initState();
+    _playSiren();
+  }
+
+  Future<void> _playSiren() async {
+    // Play a siren sound. In a real app we'd bundle an asset. 
+    // Here we can use a generated beep or an asset if we have one.
+    // For the hackathon, we'll try to play a high pitched beep or just mock the sound player.
+    // We'll set a loop mode.
+    await _audioPlayer.setReleaseMode(ReleaseMode.loop);
+    // As a mock for the demo, we will just use a beep asset or skip if not available,
+    // assuming there's an asset or we will just let it be silent if missing.
+    // Let's assume there is an asset "siren.mp3" eventually, for now we will just mock the call.
+    // _audioPlayer.play(AssetSource('siren.mp3')); 
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +140,7 @@ class AlertScreen extends StatelessWidget {
               // Buttons
               ElevatedButton(
                 onPressed: () {
-                  Navigator.pop(context); // Go back to map
+                  Navigator.pop(context, true); // Go back and indicate evacuation started
                 },
                 style: ElevatedButton.styleFrom(
                   backgroundColor: Colors.white,
@@ -119,7 +151,7 @@ class AlertScreen extends StatelessWidget {
                   ),
                 ),
                 child: const Text(
-                  'View Map & Safe Locations',
+                  'START EVACUATION',
                   style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                 ),
               ),

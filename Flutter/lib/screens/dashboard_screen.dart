@@ -1,7 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'dart:async';
+import 'package:flutter_tts/flutter_tts.dart';
+import '../services/backend_service.dart';
 import 'alert_screen.dart';
+
+enum DemoState { safe, smsReceived, crisis, evacuation, reroute, manDown, sosTriggered }
 
 class DashboardScreen extends StatefulWidget {
   const DashboardScreen({super.key});
@@ -12,6 +17,232 @@ class DashboardScreen extends StatefulWidget {
 
 class _DashboardScreenState extends State<DashboardScreen> {
   String _currentStatus = 'Safe';
+  DemoState _demoState = DemoState.safe;
+  bool _showSmsBanner = false;
+  final FlutterTts _flutterTts = FlutterTts();
+  
+  // Backend data
+  String _copernicusRisk = 'LOADING...';
+  StreamSubscription? _wsSubscription;
+  Timer? _telemetryTimer;
+
+  // Simulated movement state
+  LatLng _workerPosition = const LatLng(45.4353, 28.0080);
+  Timer? _movementTimer;
+  Timer? _manDownTimer;
+  int _manDownCountdown = 30;
+
+  final List<LatLng> _routeA = [
+    const LatLng(45.4353, 28.0080),
+    const LatLng(45.4365, 28.0090),
+    const LatLng(45.4380, 28.0120),
+    const LatLng(45.4400, 28.0150),
+  ];
+
+  final List<LatLng> _routeB = [
+    const LatLng(45.4353, 28.0080),
+    const LatLng(45.4360, 28.0060),
+    const LatLng(45.4385, 28.0050),
+    const LatLng(45.4410, 28.0100),
+    const LatLng(45.4400, 28.0150), // Assembly Point North
+  ];
+
+  @override
+  void initState() {
+    super.initState();
+    _initTts();
+    _initBackend();
+  }
+
+  Future<void> _initBackend() async {
+    await BackendService().initialize();
+    
+    // Initial data fetch
+    _fetchMapData();
+
+    // Telemetry reporting
+    _telemetryTimer = Timer.periodic(const Duration(seconds: 5), (_) {
+      BackendService().postUserStatus(_workerPosition, _currentStatus);
+    });
+
+    // Listen to WebSocket events from Dispatcher
+    _wsSubscription = BackendService().eventStream.listen((data) {
+      print("Dashboard received event: ${data['event']}");
+      if (!mounted) return;
+      final event = data['event'];
+      if (event == 'alert:new' || event == 'alert:updated') {
+        final payload = data['payload'];
+        print("Alert payload type: ${payload?['type']}");
+        if (payload != null && payload['type'] == 'evacuation') {
+          if (_demoState == DemoState.safe || _demoState == DemoState.smsReceived) {
+             print("TRIGGERING CRISIS from WebSocket!");
+             // Dispatcher triggered an evacuation alert!
+             setState(() {
+               _demoState = DemoState.crisis;
+             });
+             _triggerCrisis();
+          }
+        }
+      }
+    });
+  }
+
+  Future<void> _fetchMapData() async {
+    final data = await BackendService().fetchMapData(_workerPosition);
+    if (data != null && mounted) {
+      setState(() {
+        if (data['flood_warning']?['copernicus']?['error'] == null) {
+           _copernicusRisk = 'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
+        } else {
+           _copernicusRisk = 'LOW RISK (Mock)';
+        }
+      });
+    }
+  }
+
+  Future<void> _initTts() async {
+    await _flutterTts.setLanguage("en-US");
+    await _flutterTts.setPitch(1.0);
+  }
+
+  @override
+  void dispose() {
+    _movementTimer?.cancel();
+    _manDownTimer?.cancel();
+    _telemetryTimer?.cancel();
+    _wsSubscription?.cancel();
+    super.dispose();
+  }
+
+  void _advanceDemo() async {
+    setState(() {
+      switch (_demoState) {
+        case DemoState.safe:
+          _demoState = DemoState.smsReceived;
+          _showSmsBanner = true;
+          Future.delayed(const Duration(seconds: 4), () {
+            if (mounted) setState(() => _showSmsBanner = false);
+          });
+          break;
+        case DemoState.smsReceived:
+          _demoState = DemoState.crisis;
+          _triggerCrisis();
+          break;
+        case DemoState.crisis:
+          // Normally advances via AlertScreen
+          break;
+        case DemoState.evacuation:
+          _demoState = DemoState.reroute;
+          _triggerReroute();
+          break;
+        case DemoState.reroute:
+          _demoState = DemoState.manDown;
+          _triggerManDown();
+          break;
+        case DemoState.manDown:
+          // SOS triggers automatically after 30s
+          break;
+        case DemoState.sosTriggered:
+          // Reset
+          _demoState = DemoState.safe;
+          _workerPosition = const LatLng(45.4353, 28.0080);
+          _currentStatus = 'Safe';
+          break;
+      }
+    });
+  }
+
+  void _triggerCrisis() async {
+    _currentStatus = 'Emergency';
+    final startedEvac = await Navigator.push(
+      context,
+      MaterialPageRoute(builder: (context) => const AlertScreen()),
+    );
+    if (startedEvac == true && mounted) {
+      setState(() {
+        _demoState = DemoState.evacuation;
+        _startSimulatedMovement();
+      });
+    }
+  }
+
+  void _startSimulatedMovement() {
+    _movementTimer?.cancel();
+    int ticks = 0;
+    _movementTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      ticks++;
+      setState(() {
+        // Move worker slowly north-east
+        _workerPosition = LatLng(
+          _workerPosition.latitude + 0.0002,
+          _workerPosition.longitude + 0.0002,
+        );
+      });
+      
+      // Auto-trigger reroute after 8 seconds of movement
+      if (ticks == 8 && _demoState == DemoState.evacuation) {
+        setState(() {
+          _demoState = DemoState.reroute;
+        });
+        _triggerReroute();
+      }
+      
+      // Auto-trigger man-down after 16 seconds (8 seconds after reroute)
+      if (ticks == 16 && _demoState == DemoState.reroute) {
+        setState(() {
+          _demoState = DemoState.manDown;
+        });
+        _triggerManDown();
+      }
+    });
+  }
+
+  void _triggerReroute() {
+    _flutterTts.speak("Route A flooded. Proceed to Assembly Point North via the elevated walkway.");
+  }
+
+  void _triggerManDown() {
+    _movementTimer?.cancel();
+    _manDownCountdown = 30;
+    _manDownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+      setState(() {
+        if (_manDownCountdown > 0) {
+          _manDownCountdown--;
+        } else {
+          timer.cancel();
+          _demoState = DemoState.sosTriggered;
+          BackendService().triggerManDown(_workerPosition); // Notify backend!
+          _showSosDialog();
+        }
+      });
+    });
+  }
+
+  void _showSosDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => AlertDialog(
+        backgroundColor: Colors.red[900],
+        title: const Text('MAN-DOWN ALERT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+        content: const Text(
+          'Zero movement detected for 60 seconds.\nAuto-SOS triggered. Precise coordinates sent to Dispatcher.',
+          style: TextStyle(color: Colors.white),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              setState(() {
+                _demoState = DemoState.safe; // Reset for next demo run
+              });
+            },
+            child: const Text('DISMISS', style: TextStyle(color: Colors.white)),
+          ),
+        ],
+      ),
+    );
+  }
 
   final Map<String, Color> _statusColors = {
     'Safe': const Color(0xFF00C853),
@@ -85,6 +316,31 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ],
             ),
           ),
+          
+          // SMS Banner Overlay Mock
+          if (_showSmsBanner)
+            Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade900,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+              ),
+              child: Row(
+                children: const [
+                  Icon(Icons.message, color: Colors.white),
+                  SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'PRE-ALERT: Storm forecasted in 3 days. Prepare for potential evacuation.',
+                      style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+
           // Scrollable Content
           Expanded(
             child: SingleChildScrollView(
@@ -106,14 +362,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                               urlTemplate: 'https://tile.openstreetmap.org/{z}/{x}/{y}.png',
                               userAgentPackageName: 'com.hydralis.floodguard',
                             ),
+                            if (_demoState == DemoState.evacuation || _demoState == DemoState.reroute || _demoState == DemoState.manDown)
+                              PolylineLayer(
+                                polylines: [
+                                  if (_demoState == DemoState.evacuation)
+                                    Polyline(
+                                      points: _routeA,
+                                      color: Colors.blue,
+                                      strokeWidth: 5.0,
+                                    ),
+                                  if (_demoState == DemoState.reroute || _demoState == DemoState.manDown) ...[
+                                    Polyline(
+                                      points: _routeA,
+                                      color: Colors.red,
+                                      strokeWidth: 5.0,
+                                    ),
+                                    Polyline(
+                                      points: _routeB,
+                                      color: Colors.blue,
+                                      strokeWidth: 5.0,
+                                    ),
+                                  ]
+                                ],
+                              ),
                             MarkerLayer(
                               markers: [
                                 Marker(
-                                  point: const LatLng(45.4353, 28.0080),
+                                  point: _workerPosition,
                                   width: 40,
                                   height: 40,
                                   child: Icon(
-                                    Icons.location_on,
+                                    Icons.person_pin_circle,
                                     color: activeColor,
                                     size: 40,
                                   ),
@@ -159,6 +438,103 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       ],
                     ),
                   ),
+
+                  // Passive Readiness Dashboard elements
+                  if (_demoState == DemoState.safe || _demoState == DemoState.smsReceived)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Column(
+                        children: [
+                          Row(
+                            children: [
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.green.shade200, width: 2),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: const [
+                                          Icon(Icons.satellite_alt, color: Colors.blue, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Copernicus', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text('Site Risk Gauge', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                      Text(_copernicusRisk, style: const TextStyle(color: Colors.green, fontWeight: FontWeight.bold, fontSize: 16)),
+                                      const Text('10-day forecast', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(width: 12),
+                              Expanded(
+                                child: Container(
+                                  padding: const EdgeInsets.all(16),
+                                  decoration: BoxDecoration(
+                                    color: Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: Border.all(color: Colors.blue.shade200, width: 2),
+                                  ),
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Row(
+                                        children: const [
+                                          Icon(Icons.radar, color: Colors.blue, size: 20),
+                                          SizedBox(width: 8),
+                                          Text('Galileo+EGNOS', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 12)),
+                                        ],
+                                      ),
+                                      const SizedBox(height: 8),
+                                      const Text('Precision Heartbeat', style: TextStyle(color: Colors.grey, fontSize: 12)),
+                                      const Text('ACTIVE', style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold, fontSize: 16)),
+                                      const Text('Within Geofence', style: TextStyle(fontSize: 10, color: Colors.grey)),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ],
+                      ),
+                    ),
+
+                  // Man Down Alert Indicator
+                  if (_demoState == DemoState.manDown)
+                    Padding(
+                      padding: const EdgeInsets.all(16.0),
+                      child: Container(
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: Colors.red.shade100,
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(color: Colors.red, width: 2),
+                        ),
+                        child: Row(
+                          children: [
+                            const Icon(Icons.warning_amber_rounded, color: Colors.red, size: 40),
+                            const SizedBox(width: 16),
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  const Text('Movement Watchdog', style: TextStyle(fontWeight: FontWeight.bold, color: Colors.red)),
+                                  Text('Zero movement detected. SOS in $_manDownCountdown seconds.', style: const TextStyle(color: Colors.red)),
+                                ],
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+
                   Padding(
                     padding: const EdgeInsets.all(16.0),
                     child: Column(

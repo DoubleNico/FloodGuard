@@ -3,6 +3,7 @@
 @import "./palettes.css";
 @import "./button.css";
 @import "./theme.css";
+@import "./dashboard.css";
 
 @tailwind utilities;
 /* I want to keep this simple because here will be the main tailwindcss stuff, works like main method in java ;P */

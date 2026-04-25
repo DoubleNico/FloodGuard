@@ -1,19 +1,15 @@
 <template>
-  <div
-    class="min-h-screen w-full flex items-center justify-center bg-(--surface-secondary) p-4"
-  >
+  <div class="min-h-screen w-full flex items-center justify-center bg-(--surface-secondary) p-4">
     <Card class="w-full max-w-[420px]">
       <CardHeader class="text-center pb-8">
         <div class="flex justify-center mb-5">
-          <div
-            class="h-14 w-14 rounded-2xl bg-(--btn-primary-bg) flex items-center justify-center text-white shadow-xl shadow-(--btn-primary-bg)/20"
-          >
-            <Icon name="mdi:shield-lock" class="h-8 w-8" />
+          <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
+            <Icon name="mdi:water-alert" class="h-8 w-8" />
           </div>
         </div>
         <CardTitle class="text-2xl">Hydralis Access</CardTitle>
         <CardDescription class="mt-2 text-base">
-          Sign in to access protected pages
+          Sign in to the flood monitoring dashboard
         </CardDescription>
       </CardHeader>
 
@@ -43,6 +39,25 @@
             :error="formErrors.password"
           />
 
+          <div>
+            <label class="text-sm font-medium text-(--label-text) mb-2 block">Role</label>
+            <div class="grid grid-cols-3 gap-2">
+              <button
+                v-for="role in roles"
+                :key="role.value"
+                type="button"
+                class="flex flex-col items-center gap-1.5 p-3 rounded-xl border transition-all duration-200 cursor-pointer"
+                :class="form.role === role.value
+                  ? 'border-blue-500 bg-blue-500/10 shadow-sm'
+                  : 'border-(--border-color) bg-(--surface-secondary)/50 hover:border-(--border-color) hover:bg-(--surface-secondary)'"
+                @click="form.role = role.value"
+              >
+                <Icon :name="role.icon" class="h-5 w-5" :class="form.role === role.value ? 'text-blue-500' : 'text-(--icon-color)'" />
+                <span class="text-xs font-medium" :class="form.role === role.value ? 'text-blue-500' : 'text-(--label-text)'">{{ role.label }}</span>
+              </button>
+            </div>
+          </div>
+
           <p v-if="authError" class="text-sm text-(--input-error-text)">
             {{ authError }}
           </p>
@@ -61,11 +76,9 @@
         </Form>
       </CardContent>
 
-      <CardFooter
-        class="flex justify-center border-t border-(--border-color) bg-(--surface-secondary)/30 py-6"
-      >
+      <CardFooter class="flex justify-center border-t border-(--border-color) bg-(--surface-secondary)/30 py-6">
         <p class="text-sm text-(--label-text)">
-          Don't have an account? Go to hydralis and ask for a beer!
+          Hydralis — Flood Early Warning Platform
         </p>
       </CardFooter>
     </Card>
@@ -86,18 +99,27 @@ const sessionCookie = useCookie<string | null>(INTERNAL_AUTH_COOKIE, {
   maxAge: 60 * 60 * 24,
 });
 
+const { setRole } = useRole();
+
 const isLoading = ref(false);
 const authError = ref("");
 
 const form = reactive({
   username: "",
   password: "",
+  role: "dispatcher" as "dispatcher" | "industrial" | "admin",
 });
 
 const formErrors = reactive({
   username: "",
   password: "",
 });
+
+const roles = [
+  { value: "dispatcher", label: "Dispatcher", icon: "mdi:shield-alert" },
+  { value: "industrial", label: "Industrial", icon: "mdi:factory" },
+  { value: "admin", label: "Admin", icon: "mdi:cog" },
+];
 
 const redirectPath = computed(() => sanitizeRedirectPath(route.query.redirect));
 
@@ -129,7 +151,10 @@ const handleLogin = async () => {
   }
 
   sessionCookie.value = form.username.trim();
-  await navigateTo(redirectPath.value);
+  setRole(form.role);
+
+  const target = redirectPath.value === "/" ? "/dashboard" : redirectPath.value;
+  await navigateTo(target);
   isLoading.value = false;
 };
 </script>

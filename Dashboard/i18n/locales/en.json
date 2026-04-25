@@ -1,3 +1,43 @@
 {
-  "welcome": "Welcome"
+  "welcome": "Welcome to Hydralis",
+  "nav": {
+    "overview": "Overview",
+    "alerts": "Alerts & Broadcast",
+    "map": "Safe Locations",
+    "satellite": "Satellite Data",
+    "industrial": "Industrial Hub",
+    "factories": "Factories",
+    "sensors": "Sensors",
+    "subscription": "Subscription",
+    "settings": "Settings"
+  },
+  "landing": {
+    "hero_title": "Flood Early Warning & Evacuation Platform",
+    "hero_subtitle": "Real-time flood monitoring, emergency dispatch, and citizen guidance powered by Copernicus Earth Observation and Galileo GNSS.",
+    "cta_dashboard": "Access Dashboard",
+    "cta_learn": "Learn More",
+    "feature_alerts": "Emergency Alerts",
+    "feature_alerts_desc": "Broadcast critical flood warnings to citizens in affected zones with severity-based targeting.",
+    "feature_map": "Safe Locations",
+    "feature_map_desc": "Interactive map with evacuation shelters, assembly points, and real-time occupancy tracking.",
+    "feature_satellite": "Satellite Intelligence",
+    "feature_satellite_desc": "Water level monitoring, NDWI analysis, and precipitation forecasts from Copernicus.",
+    "feature_industrial": "Industrial Monitoring",
+    "feature_industrial_desc": "Factory flood risk assessment, sensor telemetry, and employee safety management."
+  },
+  "alerts": {
+    "active": "Active Alerts",
+    "broadcast": "Broadcast Global Alarm",
+    "create": "Create New Alert",
+    "severity": "Severity",
+    "affected_areas": "Affected Areas"
+  },
+  "subscription": {
+    "starter": "Starter",
+    "operations": "Operations Plus",
+    "enterprise": "Enterprise / Critical Site",
+    "current_plan": "Current Plan",
+    "upgrade": "Upgrade",
+    "per_month": "/month"
+  }
 }

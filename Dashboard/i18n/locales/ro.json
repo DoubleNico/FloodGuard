@@ -1,3 +1,43 @@
 {
-  "welcome": "Bine ați venit"
+  "welcome": "Bun venit la Hydralis",
+  "nav": {
+    "overview": "Prezentare generală",
+    "alerts": "Alerte și Difuzare",
+    "map": "Locații sigure",
+    "satellite": "Date satelitare",
+    "industrial": "Hub industrial",
+    "factories": "Fabrici",
+    "sensors": "Senzori",
+    "subscription": "Abonament",
+    "settings": "Setări"
+  },
+  "landing": {
+    "hero_title": "Platformă de avertizare timpurie și evacuare în caz de inundații",
+    "hero_subtitle": "Monitorizare în timp real a inundațiilor, dispecerat de urgență și ghidare a cetățenilor, alimentată de Copernicus și Galileo GNSS.",
+    "cta_dashboard": "Accesează tabloul de bord",
+    "cta_learn": "Află mai multe",
+    "feature_alerts": "Alerte de urgență",
+    "feature_alerts_desc": "Transmiteți avertismente critice de inundații către cetățenii din zonele afectate cu direcționare bazată pe severitate.",
+    "feature_map": "Locații sigure",
+    "feature_map_desc": "Hartă interactivă cu adăposturi de evacuare, puncte de adunare și urmărirea ocupării în timp real.",
+    "feature_satellite": "Inteligență satelitară",
+    "feature_satellite_desc": "Monitorizarea nivelului apei, analiza NDWI și prognoza precipitațiilor de la Copernicus.",
+    "feature_industrial": "Monitorizare industrială",
+    "feature_industrial_desc": "Evaluarea riscului de inundații al fabricilor, telemetria senzorilor și managementul siguranței angajaților."
+  },
+  "alerts": {
+    "active": "Alerte active",
+    "broadcast": "Difuzează alarmă globală",
+    "create": "Creează alertă nouă",
+    "severity": "Severitate",
+    "affected_areas": "Zone afectate"
+  },
+  "subscription": {
+    "starter": "Starter",
+    "operations": "Operations Plus",
+    "enterprise": "Enterprise / Site critic",
+    "current_plan": "Plan curent",
+    "upgrade": "Upgrade",
+    "per_month": "/lună"
+  }
 }

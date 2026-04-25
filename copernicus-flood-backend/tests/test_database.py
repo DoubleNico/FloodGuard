@@ -13,11 +13,13 @@ def test_initialize_database_seeds_core_data(tmp_path: Path) -> None:
     initialize_database(settings)
 
     with connect(settings) as conn:
-        assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 3
-        assert conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0] >= 1
-        assert conn.execute("SELECT COUNT(*) FROM safe_locations").fetchone()[0] >= 1
-        assert conn.execute("SELECT COUNT(*) FROM factories").fetchone()[0] >= 1
-        assert conn.execute("SELECT COUNT(*) FROM sensors").fetchone()[0] >= 1
+        assert conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 5
+        assert conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0] >= 5
+        assert conn.execute("SELECT COUNT(*) FROM safe_locations").fetchone()[0] >= 7
+        assert conn.execute("SELECT COUNT(*) FROM factories").fetchone()[0] >= 4
+        assert conn.execute("SELECT COUNT(*) FROM sensors").fetchone()[0] >= 12
+        assert conn.execute("SELECT COUNT(*) FROM mobile_users").fetchone()[0] >= 5
+        assert conn.execute("SELECT COUNT(*) FROM emergency_triggers").fetchone()[0] >= 2
 
 
 def test_next_prefixed_id_increments_existing_ids(tmp_path: Path) -> None:
@@ -25,7 +27,7 @@ def test_next_prefixed_id_increments_existing_ids(tmp_path: Path) -> None:
     initialize_database(settings)
 
     with connect(settings) as conn:
-        assert next_prefixed_id(conn, "alerts", "ALR") == "ALR-002"
+        assert next_prefixed_id(conn, "alerts", "ALR") == "ALR-006"
 
 
 def test_alert_row_maps_to_api_shape(tmp_path: Path) -> None:

@@ -138,30 +138,66 @@ def create_schema(conn: sqlite3.Connection) -> None:
             sensors_connected INTEGER NOT NULL,
             active_users INTEGER NOT NULL
         );
+
+        CREATE TABLE IF NOT EXISTS mobile_users (
+            id TEXT PRIMARY KEY,
+            full_name TEXT NOT NULL,
+            email TEXT NOT NULL UNIQUE,
+            password_hash TEXT NOT NULL,
+            birthday TEXT NOT NULL,
+            primary_location TEXT NOT NULL,
+            safety_level INTEGER NOT NULL CHECK (safety_level BETWEEN 0 AND 3),
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS user_status_updates (
+            id TEXT PRIMARY KEY,
+            user_id TEXT NOT NULL,
+            status TEXT NOT NULL,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            timestamp TEXT NOT NULL,
+            created_at TEXT NOT NULL
+        );
+
+        CREATE TABLE IF NOT EXISTS emergency_triggers (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            acknowledged INTEGER NOT NULL DEFAULT 0
+        );
         """
     )
 
 
 def seed_database(conn: sqlite3.Connection) -> None:
-    if conn.execute("SELECT COUNT(*) FROM users").fetchone()[0] == 0:
-        conn.executemany(
-            "INSERT INTO users (id, username, password_hash, role, display_name) VALUES (?, ?, ?, ?, ?)",
-            [
-                ("usr_001", "dispatcher_ion", _demo_password_hash("password123"), "dispatcher", "Dispatcher Ionescu"),
-                ("usr_002", "industrial_maria", _demo_password_hash("password123"), "industrial", "Maria Industrial"),
-                ("usr_003", "admin", _demo_password_hash("password123"), "admin", "Hydralis Admin"),
-            ],
-        )
-
     now = utc_now_iso()
-    if conn.execute("SELECT COUNT(*) FROM alerts").fetchone()[0] == 0:
-        conn.execute(
-            """
-            INSERT INTO alerts (
-                id, type, severity, status, title, message, affected_areas, created_at,
-                updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO users (id, username, password_hash, role, display_name)
+        VALUES (?, ?, ?, ?, ?)
+        """,
+        [
+            ("usr_001", "dispatcher_ion", _demo_password_hash("password123"), "dispatcher", "Dispatcher Ionescu"),
+            ("usr_002", "industrial_maria", _demo_password_hash("password123"), "industrial", "Maria Industrial"),
+            ("usr_003", "admin", _demo_password_hash("password123"), "admin", "Hydralis Admin"),
+            ("usr_004", "dispatcher_ana", _demo_password_hash("password123"), "dispatcher", "Dispatcher Ana Popa"),
+            ("usr_005", "industrial_vlad", _demo_password_hash("password123"), "industrial", "Vlad Industrial"),
+        ],
+    )
+
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO alerts (
+            id, type, severity, status, title, message, affected_areas, created_at,
+            updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
             (
                 "ALR-001",
                 "flood",
@@ -178,98 +214,251 @@ def seed_database(conn: sqlite3.Connection) -> None:
                 1,
                 12847,
             ),
-        )
+            (
+                "ALR-002",
+                "flash-flood",
+                5,
+                "approved",
+                "Flash Flood Risk in Micro 17",
+                "Radar precipitation and drainage models indicate rapid runoff risk in low streets.",
+                json.dumps(["Micro 17", "Tiglina I"]),
+                now,
+                now,
+                None,
+                None,
+                "Dispatcher Ana Popa",
+                0,
+                0,
+            ),
+            (
+                "ALR-003",
+                "storm",
+                3,
+                "review",
+                "Severe Storm Watch",
+                "Strong wind and heavy rainfall may affect city transport corridors.",
+                json.dumps(["Centru", "Mazepa"]),
+                now,
+                now,
+                None,
+                None,
+                "Dispatcher Ionescu",
+                0,
+                0,
+            ),
+            (
+                "ALR-004",
+                "evacuation",
+                5,
+                "draft",
+                "Port Evacuation Route Preparation",
+                "Prepare evacuation route signage and shelter intake staff near Port district.",
+                json.dumps(["Port"]),
+                now,
+                now,
+                None,
+                None,
+                "Hydralis Admin",
+                0,
+                0,
+            ),
+            (
+                "ALR-005",
+                "flood",
+                2,
+                "closed",
+                "Prut Monitoring Notice Closed",
+                "Previous monitoring notice closed after river level stabilized.",
+                json.dumps(["Oancea", "Prut river corridor"]),
+                now,
+                now,
+                None,
+                now,
+                "Dispatcher Ana Popa",
+                0,
+                3800,
+            ),
+        ],
+    )
 
-    if conn.execute("SELECT COUNT(*) FROM safe_locations").fetchone()[0] == 0:
-        conn.executemany(
-            """
-            INSERT INTO safe_locations (
-                id, name, type, lat, lng, address, capacity, current_occupancy,
-                status, contact_phone, accessibility_notes, last_updated
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                (
-                    "SL-001",
-                    "Sala Sporturilor - Dunarea",
-                    "shelter",
-                    45.4353,
-                    28.0497,
-                    "Str. Stadionului 2, Galati",
-                    500,
-                    187,
-                    "open",
-                    "+40 236 412 000",
-                    "Wheelchair accessible",
-                    now,
-                ),
-                (
-                    "SL-002",
-                    "Parcul Viva Assembly Point",
-                    "assembly-point",
-                    45.4421,
-                    28.0432,
-                    "Bulevardul George Cosbuc, Galati",
-                    900,
-                    120,
-                    "open",
-                    "+40 236 000 111",
-                    "Outdoor area with bus access",
-                    now,
-                ),
-            ],
-        )
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO safe_locations (
+            id, name, type, lat, lng, address, capacity, current_occupancy,
+            status, contact_phone, accessibility_notes, last_updated
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "SL-001",
+                "Sala Sporturilor - Dunarea",
+                "shelter",
+                45.4353,
+                28.0497,
+                "Str. Stadionului 2, Galati",
+                500,
+                187,
+                "open",
+                "+40 236 412 000",
+                "Wheelchair accessible",
+                now,
+            ),
+            (
+                "SL-002",
+                "Parcul Viva Assembly Point",
+                "assembly-point",
+                45.4421,
+                28.0432,
+                "Bulevardul George Cosbuc, Galati",
+                900,
+                120,
+                "open",
+                "+40 236 000 111",
+                "Outdoor area with bus access",
+                now,
+            ),
+            (
+                "SL-003",
+                "City Hall Emergency Center",
+                "medical",
+                45.4368,
+                28.0542,
+                "Str. Domneasca 54, Galati",
+                220,
+                154,
+                "filling",
+                "+40 236 307 700",
+                "Medical triage, generator backup",
+                now,
+            ),
+            (
+                "SL-004",
+                "Colegiul National Vasile Alecsandri",
+                "shelter",
+                45.4389,
+                28.0558,
+                "Str. Nicolae Balcescu 41, Galati",
+                360,
+                338,
+                "filling",
+                "+40 236 411 222",
+                "Second-floor sleeping area, limited parking",
+                now,
+            ),
+            (
+                "SL-005",
+                "Metro Supply Depot",
+                "supply-depot",
+                45.4665,
+                28.0281,
+                "DN26, Galati",
+                1200,
+                410,
+                "open",
+                "+40 236 000 222",
+                "Food, water, blankets, forklift access",
+                now,
+            ),
+            (
+                "SL-006",
+                "Universitatea Dunarea de Jos Hall",
+                "shelter",
+                45.4459,
+                28.0507,
+                "Str. Domneasca 47, Galati",
+                280,
+                280,
+                "full",
+                "+40 236 460 000",
+                "Full capacity, redirect to SL-001",
+                now,
+            ),
+            (
+                "SL-007",
+                "Bariera Traian Assembly Point",
+                "assembly-point",
+                45.4641,
+                28.0149,
+                "Bariera Traian, Galati",
+                700,
+                42,
+                "open",
+                "+40 236 000 333",
+                "Bus pickup point, outdoor lighting",
+                now,
+            ),
+        ],
+    )
 
-    _seed_if_empty(
+    _upsert_named_rows(
         conn,
         "water_levels",
+        "station",
         "INSERT INTO water_levels (station, level, warning_level, critical_level, trend) VALUES (?, ?, ?, ?, ?)",
         [
             ("Danube - Galati", 142, 150, 170, "rising"),
             ("Siret - Sendreni", 104, 130, 155, "stable"),
             ("Prut - Oancea", 96, 125, 150, "falling"),
+            ("Lake Brates Outflow", 118, 135, 160, "rising"),
+            ("Danube - Braila", 138, 152, 176, "stable"),
+            ("Covurlui Canal", 72, 100, 130, "rising"),
         ],
     )
-    _seed_if_empty(
+    _upsert_named_rows(
         conn,
         "ndwi",
+        "zone",
         "INSERT INTO ndwi (zone, value, risk) VALUES (?, ?, ?)",
         [
             ("Port", 0.78, "high"),
             ("Faleza Dunarii", 0.52, "moderate"),
             ("Micro 17", 0.31, "low"),
+            ("Tiglina I", 0.63, "high"),
+            ("Mazepa", 0.44, "moderate"),
+            ("Bariera Traian", 0.22, "low"),
+            ("Filești Industrial", 0.83, "critical"),
         ],
     )
-    _seed_if_empty(
+    _upsert_named_rows(
         conn,
         "precipitation",
+        "date",
         "INSERT INTO precipitation (date, actual, forecast) VALUES (?, ?, ?)",
         [
+            ("Apr 21", 0, None),
+            ("Apr 22", 4, None),
             ("Apr 23", 6, None),
             ("Apr 24", 18, None),
             ("Apr 25", None, 25),
             ("Apr 26", None, 14),
+            ("Apr 27", None, 9),
+            ("Apr 28", None, 3),
         ],
     )
-    _seed_if_empty(
-        conn,
-        "galileo_satellites",
-        "INSERT INTO galileo_satellites (id, name, status, signal) VALUES (?, ?, ?, ?)",
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO galileo_satellites (id, name, status, signal)
+        VALUES (?, ?, ?, ?)
+        """,
         [
             ("GAL-101", "Galileo GSAT0211", "operational", 97),
             ("GAL-102", "Galileo GSAT0220", "operational", 94),
             ("GAL-103", "Galileo GSAT0204", "testing", 76),
+            ("GAL-104", "Galileo GSAT0219", "operational", 91),
+            ("GAL-105", "Galileo GSAT0223", "operational", 88),
+            ("GAL-106", "Galileo GSAT0104", "unavailable", 0),
+            ("GAL-107", "Galileo GSAT0206", "operational", 82),
         ],
     )
 
-    if conn.execute("SELECT COUNT(*) FROM factories").fetchone()[0] == 0:
-        conn.execute(
-            """
-            INSERT INTO factories (
-                id, name, location, lat, lng, status, sensor_count, risk_level,
-                water_proximity, last_inspection, employees
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO factories (
+            id, name, location, lat, lng, status, sensor_count, risk_level,
+            water_proximity, last_inspection, employees
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
             (
                 "F-001",
                 "Liberty Galati Steelworks",
@@ -283,20 +472,69 @@ def seed_database(conn: sqlite3.Connection) -> None:
                 "2026-04-18T00:00:00Z",
                 4200,
             ),
-        )
-    if conn.execute("SELECT COUNT(*) FROM sensors").fetchone()[0] == 0:
-        conn.executemany(
-            """
-            INSERT INTO sensors (
-                id, factory_id, name, type, value, unit, threshold, status, last_update
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """,
-            [
-                ("S-001", "F-001", "Danube Proximity Gauge", "water-level", 142, "cm", 150, "warning", now),
-                ("S-002", "F-001", "Pump Station Pressure", "pressure", 6.8, "bar", 8.5, "online", now),
-                ("S-003", "F-001", "Storage Hall Humidity", "humidity", 72, "%", 85, "online", now),
-            ],
-        )
+            (
+                "F-002",
+                "Damen Shipyards Galati",
+                "Port Bazinul Nou",
+                45.4281,
+                28.0734,
+                "operational",
+                18,
+                "moderate",
+                80,
+                "2026-04-20T00:00:00Z",
+                2300,
+            ),
+            (
+                "F-003",
+                "Prutul SA Oil Processing",
+                "Zona Industriala Est",
+                45.4217,
+                28.0386,
+                "critical",
+                15,
+                "critical",
+                55,
+                "2026-04-16T00:00:00Z",
+                680,
+            ),
+            (
+                "F-004",
+                "Galati Logistics Cold Storage",
+                "Filești",
+                45.4574,
+                27.9862,
+                "offline",
+                9,
+                "moderate",
+                410,
+                "2026-04-05T00:00:00Z",
+                145,
+            ),
+        ],
+    )
+
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO sensors (
+            id, factory_id, name, type, value, unit, threshold, status, last_update
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("S-001", "F-001", "Danube Proximity Gauge", "water-level", 142, "cm", 150, "warning", now),
+            ("S-002", "F-001", "Pump Station Pressure", "pressure", 6.8, "bar", 8.5, "online", now),
+            ("S-003", "F-001", "Storage Hall Humidity", "humidity", 72, "%", 85, "online", now),
+            ("S-004", "F-001", "Blast Furnace Foundation Tilt", "structural", 2.4, "mm", 4.0, "online", now),
+            ("S-005", "F-002", "Dock Gate Water Gauge", "water-level", 131, "cm", 155, "online", now),
+            ("S-006", "F-002", "Paint Hall Humidity", "humidity", 66, "%", 80, "online", now),
+            ("S-007", "F-002", "Crane Rail Strain", "structural", 3.1, "mm", 5.0, "warning", now),
+            ("S-008", "F-003", "Oil Tank Bund Water Level", "water-level", 163, "cm", 150, "critical", now),
+            ("S-009", "F-003", "Valve Station Pressure", "pressure", 9.4, "bar", 8.5, "critical", now),
+            ("S-010", "F-003", "Warehouse Temperature", "temperature", 31.5, "C", 40.0, "online", now),
+            ("S-011", "F-004", "Cold Room Temperature", "temperature", -8.0, "C", -5.0, "offline", now),
+            ("S-012", "F-004", "Loading Dock Water Sensor", "water-level", 44, "cm", 90, "offline", now),
+        ],
+    )
 
     conn.execute(
         """
@@ -305,7 +543,105 @@ def seed_database(conn: sqlite3.Connection) -> None:
         ) VALUES (1, 'operations', 47, 7, 12, 4)
         """
     )
+    conn.execute(
+        """
+        UPDATE subscription_status
+        SET locations_configured = (SELECT COUNT(*) FROM safe_locations),
+            sensors_connected = (SELECT COUNT(*) FROM sensors),
+            active_users = (SELECT COUNT(*) FROM users)
+        WHERE id = 1
+        """
+    )
 
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO mobile_users (
+            id, full_name, email, password_hash, birthday, primary_location,
+            safety_level, created_at, updated_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            (
+                "mob_001",
+                "John Doe",
+                "john@example.com",
+                _demo_password_hash("securepassword123"),
+                "05/14/1990",
+                "Galati, Romania",
+                1,
+                now,
+                now,
+            ),
+            (
+                "mob_002",
+                "Elena Marin",
+                "elena.marin@example.com",
+                _demo_password_hash("securepassword123"),
+                "09/21/1984",
+                "Mazepa, Galati",
+                2,
+                now,
+                now,
+            ),
+            (
+                "mob_003",
+                "Mihai Stan",
+                "mihai.stan@example.com",
+                _demo_password_hash("securepassword123"),
+                "01/08/1978",
+                "Port, Galati",
+                3,
+                now,
+                now,
+            ),
+            (
+                "mob_004",
+                "Ioana Radu",
+                "ioana.radu@example.com",
+                _demo_password_hash("securepassword123"),
+                "12/02/1995",
+                "Tiglina I, Galati",
+                1,
+                now,
+                now,
+            ),
+            (
+                "mob_005",
+                "Andrei Pavel",
+                "andrei.pavel@example.com",
+                _demo_password_hash("securepassword123"),
+                "07/30/2001",
+                "Micro 17, Galati",
+                2,
+                now,
+                now,
+            ),
+        ],
+    )
+
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO user_status_updates (id, user_id, status, lat, lng, timestamp, created_at)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("UST-001", "mob_002", "Monitor", 45.4419, 28.0455, now, now),
+            ("UST-002", "mob_003", "Need Help", 45.4248, 28.0731, now, now),
+            ("UST-003", "mob_004", "Safe", 45.4382, 28.0309, now, now),
+            ("UST-004", "mob_005", "Emergency", 45.4572, 28.0024, now, now),
+        ],
+    )
+
+    conn.executemany(
+        """
+        INSERT OR IGNORE INTO emergency_triggers (id, user_id, lat, lng, message, created_at, acknowledged)
+        VALUES (?, ?, ?, ?, ?, ?, ?)
+        """,
+        [
+            ("EMG-001", "mob_003", 45.4248, 28.0731, "Water entering ground floor near port warehouse.", now, 0),
+            ("EMG-002", "mob_005", 45.4572, 28.0024, "Blocked road and rising water near Micro 17.", now, 0),
+        ],
+    )
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(row)
@@ -330,6 +666,18 @@ def _seed_if_empty(
 ) -> None:
     if conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0:
         conn.executemany(sql, rows)
+
+
+def _upsert_named_rows(
+    conn: sqlite3.Connection,
+    table: str,
+    unique_column: str,
+    sql: str,
+    rows: list[tuple[Any, ...]],
+) -> None:
+    for row in rows:
+        if not conn.execute(f"SELECT 1 FROM {table} WHERE {unique_column} = ?", (row[0],)).fetchone():
+            conn.execute(sql, row)
 
 
 def _demo_password_hash(password: str) -> str:

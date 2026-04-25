@@ -15,6 +15,7 @@ from app.exceptions import AppError
 from app.flood import build_heatmap_png, detect_flood
 from app.hydralis import router as hydralis_router
 from app.map_page import MAP_HTML
+from app.mobile import router as mobile_router
 from app.models import (
     AreaInput,
     CenterRadius,
@@ -51,6 +52,7 @@ app.add_middleware(
 )
 
 app.include_router(hydralis_router)
+app.include_router(mobile_router)
 
 
 async def copernicus_client(

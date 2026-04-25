@@ -22,3 +22,8 @@ def test_efas_routes_are_registered() -> None:
     assert "/api/v1/auth/login" in paths
     assert "/api/v1/alerts" in paths
     assert "/api/v1/stream" in paths
+    assert "/api/auth/signup" in paths
+    assert "/api/auth/login" in paths
+    assert "/api/map/data" in paths
+    assert "/api/user/status" in paths
+    assert "/api/alerts/trigger" in paths

@@ -58,6 +58,8 @@ class UserStatusRequest(BaseModel):
 
 class TriggerAlertRequest(BaseModel):
     user_id: str | None = None
+    user_name: str | None = None
+    mobility_info: dict[str, Any] | None = None
     current_location: CurrentLocation
     message: str = "Mobile emergency alert"
 
@@ -246,12 +248,14 @@ async def trigger_alert(
     trigger_id = next_prefixed_id(conn, "emergency_triggers", "EMG")
     conn.execute(
         """
-        INSERT INTO emergency_triggers (id, user_id, lat, lng, message, created_at, acknowledged)
-        VALUES (?, ?, ?, ?, ?, ?, 0)
+        INSERT INTO emergency_triggers (id, user_id, user_name, mobility_info, lat, lng, message, created_at, acknowledged)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, 0)
         """,
         (
             trigger_id,
             str(user_id),
+            request.user_name,
+            json.dumps(request.mobility_info) if request.mobility_info else None,
             request.current_location.lat,
             request.current_location.lng,
             request.message,
@@ -260,16 +264,24 @@ async def trigger_alert(
     )
     alert_id = next_prefixed_id(conn, "alerts", "ALR")
     affected_area = f"{request.current_location.lat:.5f},{request.current_location.lng:.5f}"
+    worker_name = request.user_name or "Unknown Worker"
+    mobility_json = json.dumps(request.mobility_info) if request.mobility_info else None
+    mobility_text = ""
+    if request.mobility_info and request.mobility_info.get("has_issues"):
+        gravity = request.mobility_info.get("gravity", "Unknown")
+        mobility_text = f" | Mobility: {gravity}"
+    alert_title = f"SOS: {worker_name}{mobility_text}"
     conn.execute(
         """
         INSERT INTO alerts (
             id, type, severity, status, title, message, affected_areas, created_at,
-            updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count
-        ) VALUES (?, 'evacuation', 5, 'published', ?, ?, ?, ?, ?, ?, NULL, ?, 1, ?)
+            updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count,
+            user_name, mobility_info
+        ) VALUES (?, 'evacuation', 5, 'published', ?, ?, ?, ?, ?, ?, NULL, ?, 1, ?, ?, ?)
         """,
         (
             alert_id,
-            "Mobile Emergency Alert",
+            alert_title,
             request.message,
             f'["{affected_area}"]',
             now,
@@ -277,6 +289,8 @@ async def trigger_alert(
             now,
             str(user_id),
             _estimate_recipients([affected_area], 5),
+            worker_name,
+            mobility_json,
         ),
     )
     conn.commit()
@@ -294,6 +308,8 @@ async def trigger_alert(
             **payload,
             "location": request.current_location.model_dump(),
             "user_id": str(user_id),
+            "user_name": request.user_name,
+            "mobility_info": request.mobility_info,
         },
     )
     return payload

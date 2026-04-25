@@ -23,6 +23,8 @@ export interface FloodAlert {
   createdBy: string;
   broadcastSent: boolean;
   recipientCount: number;
+  userName?: string;
+  mobilityInfo?: any;
 }
 
 const GALATI_ZONES = [
@@ -65,15 +67,26 @@ interface AlertApiRow {
   createdBy: string;
   broadcastSent: boolean;
   recipientCount: number;
+  user_name?: string;
+  mobility_info?: any;
 }
 
-const parseAlert = (raw: AlertApiRow): FloodAlert => ({
-  ...raw,
-  createdAt: new Date(raw.createdAt),
-  updatedAt: new Date(raw.updatedAt),
-  publishedAt: raw.publishedAt ? new Date(raw.publishedAt) : undefined,
-  closedAt: raw.closedAt ? new Date(raw.closedAt) : undefined,
-});
+const parseAlert = (raw: AlertApiRow): FloodAlert => {
+  let mobility = raw.mobility_info;
+  if (typeof mobility === 'string') {
+    try { mobility = JSON.parse(mobility); } catch (e) { mobility = null; }
+  }
+  
+  return {
+    ...raw,
+    createdAt: new Date(raw.createdAt),
+    updatedAt: new Date(raw.updatedAt),
+    publishedAt: raw.publishedAt ? new Date(raw.publishedAt) : undefined,
+    closedAt: raw.closedAt ? new Date(raw.closedAt) : undefined,
+    userName: raw.user_name,
+    mobilityInfo: mobility,
+  };
+};
 
 export const useAlerts = () => {
   const { get, post, patch } = useApi();

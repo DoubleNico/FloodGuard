@@ -14,11 +14,13 @@ class BackendService {
 
   String? _token;
   String? _userId;
+  String? _userName;
   WebSocketChannel? _channel;
 
   // Stream controller to broadcast events from the WebSocket
   final _eventController = StreamController<Map<String, dynamic>>.broadcast();
   Stream<Map<String, dynamic>> get eventStream => _eventController.stream;
+  String? get userId => _userId;
 
   Future<void> initialize() async {
     await _authenticateDummyUser();
@@ -27,8 +29,8 @@ class BackendService {
 
   Future<void> _authenticateDummyUser() async {
     final loginPayload = {
-      "email": "dummy_worker@example.com",
-      "password": "dummy_password"
+      "email": "andrei.ionescu@hydralis.com",
+      "password": "secure_password"
     };
 
     try {
@@ -43,14 +45,15 @@ class BackendService {
         final data = jsonDecode(loginRes.body);
         _token = data['token'];
         _userId = data['user']['user_id'];
+        _userName = data['user']['full_name'];
       } else {
         // If login fails, try signup
         final signupPayload = {
-          "full_name": "Dummy Worker",
-          "email": "dummy_worker@example.com",
-          "password": "dummy_password",
-          "birthday": "1990-01-01",
-          "primary_location": "Main Facility",
+          "full_name": "Andrei Ionescu",
+          "email": "andrei.ionescu@hydralis.com",
+          "password": "secure_password",
+          "birthday": "1985-06-15",
+          "primary_location": "Galati Port Facility",
           "safety_level": 3
         };
 
@@ -64,6 +67,7 @@ class BackendService {
           final data = jsonDecode(signupRes.body);
           _token = data['token'];
           _userId = data['user_id'];
+          _userName = "Andrei Ionescu"; // Default for new signup in demo
         } else {
           print("Failed to authenticate dummy user: ${signupRes.body}");
         }
@@ -153,12 +157,14 @@ class BackendService {
     }
   }
 
-  Future<void> triggerManDown(LatLng location) async {
-    if (_userId == null || _token == null) return;
+  Future<String?> triggerManDown(LatLng location, {Map<String, dynamic>? mobilityInfo}) async {
+    if (_userId == null || _token == null) return null;
 
     try {
       final payload = {
         "user_id": _userId,
+        "user_name": _userName ?? "Unknown Worker",
+        "mobility_info": mobilityInfo,
         "current_location": {
           "lat": location.latitude,
           "lng": location.longitude
@@ -166,7 +172,7 @@ class BackendService {
         "message": "MAN-DOWN DETECTED: Zero movement for 60 seconds."
       };
 
-      await http.post(
+      final response = await http.post(
         Uri.parse('$baseUrl/alerts/trigger'),
         headers: {
           "Content-Type": "application/json",
@@ -174,8 +180,38 @@ class BackendService {
         },
         body: jsonEncode(payload),
       );
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['alert_id'];
+      }
     } catch (e) {
       print("Trigger alert error: $e");
+    }
+    return null;
+  }
+
+  Future<void> cancelAlert(String alertId) async {
+    try {
+      // First update the message to "Accidental Detection"
+      await http.patch(
+        Uri.parse('$baseUrl/alerts/$alertId/message'),
+        headers: {
+          "Content-Type": "application/json",
+          if (_token != null) "Authorization": "Bearer $_token",
+        },
+        body: jsonEncode({"message": "Accidental Detection — Worker confirmed safe."}),
+      );
+      // Then close the alert
+      await http.patch(
+        Uri.parse('$baseUrl/alerts/$alertId/status'),
+        headers: {
+          "Content-Type": "application/json",
+          if (_token != null) "Authorization": "Bearer $_token",
+        },
+        body: jsonEncode({"status": "closed"}),
+      );
+    } catch (e) {
+      print("Cancel alert error: $e");
     }
   }
 }

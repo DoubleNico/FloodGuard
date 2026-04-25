@@ -56,7 +56,9 @@ def create_schema(conn: sqlite3.Connection) -> None:
             closed_at TEXT,
             created_by TEXT NOT NULL,
             broadcast_sent INTEGER NOT NULL DEFAULT 0,
-            recipient_count INTEGER NOT NULL DEFAULT 0
+            recipient_count INTEGER NOT NULL DEFAULT 0,
+            user_name TEXT,
+            mobility_info TEXT
         );
 
         CREATE TABLE IF NOT EXISTS safe_locations (
@@ -174,6 +176,8 @@ def create_schema(conn: sqlite3.Connection) -> None:
         CREATE TABLE IF NOT EXISTS emergency_triggers (
             id TEXT PRIMARY KEY,
             user_id TEXT,
+            user_name TEXT,
+            mobility_info TEXT,
             lat REAL NOT NULL,
             lng REAL NOT NULL,
             message TEXT NOT NULL,

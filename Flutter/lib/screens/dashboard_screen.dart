@@ -3,8 +3,10 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
 import 'dart:async';
 import 'package:flutter_tts/flutter_tts.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 import '../services/backend_service.dart';
 import 'alert_screen.dart';
+import 'profile_screen.dart';
 
 enum DemoState { safe, smsReceived, crisis, evacuation, reroute, manDown, sosTriggered }
 
@@ -23,6 +25,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   
   // Backend data
   String _copernicusRisk = 'LOADING...';
+  String? _activeAlertMessage;
   StreamSubscription? _wsSubscription;
   Timer? _telemetryTimer;
 
@@ -70,10 +73,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("Dashboard received event: ${data['event']}");
       if (!mounted) return;
       final event = data['event'];
+      
+      // Update status from Web Dashboard
+      if (event == 'user:status_update') {
+        final payload = data['payload'];
+        if (payload != null && payload['user_id'] == BackendService().userId) {
+          setState(() {
+            _currentStatus = payload['status'] ?? 'Safe';
+          });
+        }
+      }
+
       if (event == 'alert:new' || event == 'alert:updated') {
         final payload = data['payload'];
         print("Alert payload type: ${payload?['type']}");
         if (payload != null && payload['type'] == 'evacuation') {
+          _activeAlertMessage = payload['message'];
           if (_demoState == DemoState.safe || _demoState == DemoState.smsReceived) {
              print("TRIGGERING CRISIS from WebSocket!");
              // Dispatcher triggered an evacuation alert!
@@ -201,47 +216,105 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _flutterTts.speak("Route A flooded. Proceed to Assembly Point North via the elevated walkway.");
   }
 
-  void _triggerManDown() {
+  String? _currentAlertId;
+
+  void _triggerManDown() async {
     _movementTimer?.cancel();
-    _manDownCountdown = 30;
-    _manDownTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
-      setState(() {
-        if (_manDownCountdown > 0) {
-          _manDownCountdown--;
-        } else {
-          timer.cancel();
-          _demoState = DemoState.sosTriggered;
-          BackendService().triggerManDown(_workerPosition); // Notify backend!
-          _showSosDialog();
-        }
-      });
+    setState(() {
+      _demoState = DemoState.sosTriggered;
     });
+    
+    // Immediately send the SOS alert so it appears on the dashboard
+    _currentAlertId = await _notifyManDown();
+    
+    // Show the dialog with the countdown
+    _showSosDialog();
+  }
+
+  Future<String?> _notifyManDown() async {
+    final prefs = await SharedPreferences.getInstance();
+    final hasIssues = prefs.getBool('hasMobilityIssues') ?? false;
+    final gravity = prefs.getString('mobilityGravity') ?? 'Low';
+    
+    Map<String, dynamic>? mobility;
+    if (hasIssues) {
+      mobility = {
+        "has_issues": true,
+        "gravity": gravity
+      };
+    }
+
+    return await BackendService().triggerManDown(_workerPosition, mobilityInfo: mobility);
   }
 
   void _showSosDialog() {
+    int countdown = 30;
+    Timer? dialogTimer;
+    
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => AlertDialog(
-        backgroundColor: Colors.red[900],
-        title: const Text('MAN-DOWN ALERT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: const Text(
-          'Zero movement detected for 60 seconds.\nAuto-SOS triggered. Precise coordinates sent to Dispatcher.',
-          style: TextStyle(color: Colors.white),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              setState(() {
-                _demoState = DemoState.safe; // Reset for next demo run
+      builder: (context) {
+        return StatefulBuilder(
+          builder: (context, setDialogState) {
+            if (dialogTimer == null) {
+              dialogTimer = Timer.periodic(const Duration(seconds: 1), (timer) {
+                if (mounted) {
+                  setDialogState(() {
+                    if (countdown > 0) {
+                      countdown--;
+                    } else {
+                      timer.cancel();
+                    }
+                  });
+                }
               });
-            },
-            child: const Text('DISMISS', style: TextStyle(color: Colors.white)),
-          ),
-        ],
-      ),
-    );
+            }
+
+            return AlertDialog(
+              backgroundColor: Colors.red[900],
+              title: const Text('MAN-DOWN ALERT', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+              content: Text(
+                'Zero movement detected.\nAuto-SOS triggered. Precise coordinates sent to Dispatcher.\n\nTime remaining: $countdown seconds',
+                style: const TextStyle(color: Colors.white),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () {
+                    dialogTimer?.cancel();
+                    Navigator.pop(context);
+                    if (mounted) {
+                      setState(() {
+                        _demoState = DemoState.safe;
+                      });
+                    }
+                    BackendService().postUserStatus(_workerPosition, 'Safe');
+                    if (_currentAlertId != null) {
+                      BackendService().cancelAlert(_currentAlertId!);
+                    }
+                  },
+                  child: const Text('I\'M FINE', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
+                ),
+                TextButton(
+                  onPressed: () {
+                    dialogTimer?.cancel();
+                    Navigator.pop(context);
+                    if (mounted) {
+                      setState(() {
+                        _demoState = DemoState.safe; // Reset for next demo run
+                      });
+                    }
+                  },
+                  child: const Text('DISMISS', style: TextStyle(color: Colors.white)),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    ).then((_) {
+      dialogTimer?.cancel();
+    });
   }
 
   final Map<String, Color> _statusColors = {
@@ -265,7 +338,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('FloodGuard', style: TextStyle(fontWeight: FontWeight.bold)),
+        title: const Text('Hydralis', style: TextStyle(fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
           IconButton(
@@ -273,7 +346,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
             onPressed: () {},
           ),
         ],
-        // The drawer icon will be added automatically by the Scaffold when a drawer is provided
       ),
       drawer: _buildDrawer(context),
       body: Column(
@@ -299,23 +371,37 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     ),
                   ],
                 ),
-                ElevatedButton(
-                  onPressed: () {
-                    // Optional: open a modal to change status, but since we have buttons below, this could just scroll down
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.white.withOpacity(0.2),
-                    foregroundColor: Colors.white,
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                  ),
-                  child: const Text('Change Status'),
-                ),
               ],
             ),
           ),
+          
+          // Active Alert Message Overlay
+          if (_activeAlertMessage != null && (_demoState == DemoState.crisis || _demoState == DemoState.evacuation || _demoState == DemoState.reroute))
+            Container(
+              margin: const EdgeInsets.all(8),
+              padding: const EdgeInsets.all(16),
+              decoration: BoxDecoration(
+                color: Colors.red.shade900,
+                borderRadius: BorderRadius.circular(12),
+                boxShadow: const [BoxShadow(color: Colors.black26, blurRadius: 8)],
+              ),
+              child: Row(
+                children: [
+                  const Icon(Icons.warning, color: Colors.white),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Text(
+                      'DISPATCHER MESSAGE: $_activeAlertMessage',
+                      style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close, color: Colors.white70, size: 20),
+                    onPressed: () => setState(() => _activeAlertMessage = null),
+                  )
+                ],
+              ),
+            ),
           
           // SMS Banner Overlay Mock
           if (_showSmsBanner)
@@ -541,23 +627,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
                         const Text(
-                          'Update Your Status:',
-                          style: TextStyle(fontSize: 16, color: Colors.black54),
-                        ),
-                        const SizedBox(height: 12),
-                        Row(
-                          children: [
-                            Expanded(child: _buildStatusCard('Safe', Icons.check, const Color(0xFF00C853), Colors.black87)),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildStatusCard('Monitor', Icons.bolt, const Color(0xFFFF6D00), Colors.black87)),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildStatusCard('Need Help', Icons.warning_amber_rounded, const Color(0xFFFFB300), Colors.black87)),
-                            const SizedBox(width: 8),
-                            Expanded(child: _buildStatusCard('Emergency', Icons.campaign_outlined, const Color(0xFFD50000), Colors.black87)),
-                          ],
-                        ),
-                        const SizedBox(height: 24),
-                        const Text(
                           'Nearby Safe Locations (10km radius):',
                           style: TextStyle(fontSize: 16, color: Colors.black54),
                         ),
@@ -653,8 +722,8 @@ class _DashboardScreenState extends State<DashboardScreen> {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: const [
-                        Text('John Doe', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        Text('john@example.com', style: TextStyle(color: Colors.grey)),
+                        Text('Andrei Ionescu', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+                        Text('andrei.ionescu@hydralis.com', style: TextStyle(color: Colors.grey)),
                       ],
                     ),
                   ),
@@ -669,7 +738,13 @@ class _DashboardScreenState extends State<DashboardScreen> {
             const SizedBox(height: 16),
             ListTile(
               title: const Text('Profile Settings', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
-              onTap: () {},
+              onTap: () {
+                Navigator.pop(context);
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const ProfileScreen()),
+                );
+              },
             ),
             ListTile(
               title: const Text('Emergency Contacts', style: TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
@@ -684,27 +759,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
               onTap: () {},
             ),
             const Spacer(),
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: ElevatedButton(
-                onPressed: () {
-                  Navigator.pop(context); // Close the drawer first
-                  Navigator.push(
-                    context,
-                    MaterialPageRoute(builder: (context) => const AlertScreen()),
-                  );
-                },
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: const Color(0xFFD50000), // Emergency Red
-                  foregroundColor: Colors.white,
-                  minimumSize: const Size(double.infinity, 50),
-                  shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(8),
-                  ),
-                ),
-                child: const Text('Test Emergency Alert', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-              ),
-            ),
           ],
         ),
       ),

@@ -214,6 +214,28 @@ async def update_alert_status(
     return alert
 
 
+class UpdateAlertMessageRequest(BaseModel):
+    message: str
+
+
+@router.patch("/alerts/{alert_id}/message")
+async def update_alert_message(
+    alert_id: str,
+    request: UpdateAlertMessageRequest,
+    conn: sqlite3.Connection = Depends(db),
+) -> dict[str, Any]:
+    _get_alert_or_404(conn, alert_id)
+    now = utc_now_iso()
+    conn.execute(
+        "UPDATE alerts SET message = ?, updated_at = ? WHERE id = ?",
+        (request.message, now, alert_id),
+    )
+    conn.commit()
+    alert = _get_alert_or_404(conn, alert_id)
+    await manager.broadcast("alert:updated", alert)
+    return alert
+
+
 @router.post("/alerts/{alert_id}/broadcast")
 async def broadcast_alert(
     alert_id: str,
@@ -497,7 +519,20 @@ def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "createdBy": row["created_by"],
         "broadcastSent": bool(row["broadcast_sent"]),
         "recipientCount": row["recipient_count"],
+        "user_name": row["user_name"] if "user_name" in row.keys() else None,
+        "mobility_info": _parse_json_field(row["mobility_info"]) if "mobility_info" in row.keys() else None,
     }
+
+
+def _parse_json_field(value: str | None) -> Any:
+    if value is None:
+        return None
+    if isinstance(value, str):
+        try:
+            return json.loads(value)
+        except Exception:
+            return None
+    return value
 
 
 def _location_from_row(row: sqlite3.Row) -> dict[str, Any]:

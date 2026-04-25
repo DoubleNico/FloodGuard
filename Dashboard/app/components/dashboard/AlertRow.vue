@@ -17,6 +17,15 @@
         <Icon name="mdi:check-circle" class="h-3 w-3" />
         Broadcast sent to {{ alert.recipientCount.toLocaleString() }} citizens
       </p>
+      <div v-if="alert.userName" class="mt-2 p-2 rounded-lg bg-red-500/5 border border-red-500/10">
+        <p class="text-xs font-bold text-red-500 flex items-center gap-1">
+          <Icon name="mdi:account-alert" class="h-3 w-3" />
+          Reported by: {{ alert.userName }}
+        </p>
+        <p v-if="alert.mobilityInfo?.has_issues" class="text-[10px] text-red-400 mt-0.5">
+          ♿ Mobility issues detected (Gravity: {{ alert.mobilityInfo.gravity }})
+        </p>
+      </div>
     </div>
 
     <div class="flex items-center gap-2 shrink-0">

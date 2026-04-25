@@ -62,13 +62,21 @@ interface AlertApiRow {
   title: string;
   message: string;
   affectedAreas: string[];
+  affected_areas?: string[] | string;
   createdAt: string;
+  created_at?: string;
   updatedAt: string;
+  updated_at?: string;
   publishedAt: string | null;
+  published_at?: string | null;
   closedAt: string | null;
+  closed_at?: string | null;
   createdBy: string;
+  created_by?: string;
   broadcastSent: boolean;
+  broadcast_sent?: boolean | number;
   recipientCount: number;
+  recipient_count?: number;
   user_name?: string;
   userName?: string;
   user_status?: string;
@@ -86,13 +94,29 @@ const parseAlert = (raw: AlertApiRow): FloodAlert => {
       mobility = null;
     }
   }
+  const createdAt = raw.createdAt ?? raw.created_at ?? new Date().toISOString();
+  const updatedAt = raw.updatedAt ?? raw.updated_at ?? createdAt;
+  const affectedAreas =
+    raw.affectedAreas ??
+    parseAffectedAreas(raw.affected_areas) ??
+    [];
 
   return {
     ...raw,
-    createdAt: new Date(raw.createdAt),
-    updatedAt: new Date(raw.updatedAt),
-    publishedAt: raw.publishedAt ? new Date(raw.publishedAt) : undefined,
-    closedAt: raw.closedAt ? new Date(raw.closedAt) : undefined,
+    id: raw.id,
+    type: raw.type,
+    severity: raw.severity,
+    status: raw.status,
+    title: raw.title,
+    message: raw.message,
+    affectedAreas,
+    createdAt: new Date(createdAt),
+    updatedAt: new Date(updatedAt),
+    publishedAt: raw.publishedAt || raw.published_at ? new Date((raw.publishedAt ?? raw.published_at)!) : undefined,
+    closedAt: raw.closedAt || raw.closed_at ? new Date((raw.closedAt ?? raw.closed_at)!) : undefined,
+    createdBy: raw.createdBy ?? raw.created_by ?? "Mobile",
+    broadcastSent: raw.broadcastSent ?? Boolean(raw.broadcast_sent),
+    recipientCount: raw.recipientCount ?? raw.recipient_count ?? 0,
     userName: raw.user_name ?? raw.userName,
     userStatus:
       raw.user_status ??
@@ -100,6 +124,32 @@ const parseAlert = (raw: AlertApiRow): FloodAlert => {
       (typeof mobility === "object" && mobility ? mobility.user_status : undefined),
     mobilityInfo: mobility,
   };
+};
+
+const parseAffectedAreas = (value: string[] | string | undefined) => {
+  if (Array.isArray(value)) return value;
+  if (typeof value !== "string") return undefined;
+  try {
+    return JSON.parse(value);
+  } catch {
+    return [value];
+  }
+};
+
+const normalizeAlertPayload = (payload: any): AlertApiRow | null => {
+  const source = payload?.broadcast ?? payload?.alert ?? payload;
+  if (!source) return null;
+
+  return {
+    ...source,
+    id: source.id ?? payload?.alert_id,
+    user_name: source.user_name ?? source.userName ?? payload?.user_name ?? payload?.userName,
+    userName: source.userName ?? source.user_name ?? payload?.userName ?? payload?.user_name,
+    user_status: source.user_status ?? source.userStatus ?? payload?.user_status ?? payload?.userStatus,
+    userStatus: source.userStatus ?? source.user_status ?? payload?.userStatus ?? payload?.user_status,
+    mobility_info: source.mobility_info ?? source.mobilityInfo ?? payload?.mobility_info ?? payload?.mobilityInfo,
+    mobilityInfo: source.mobilityInfo ?? source.mobility_info ?? payload?.mobilityInfo ?? payload?.mobility_info,
+  } as AlertApiRow;
 };
 
 export const useAlerts = () => {
@@ -128,6 +178,20 @@ export const useAlerts = () => {
     } finally {
       loading.value = false;
     }
+  };
+
+  const upsertAlertFromPayload = (payload: any) => {
+    const raw = normalizeAlertPayload(payload);
+    if (!raw?.id) return;
+
+    const alert = parseAlert(raw);
+    const index = alerts.value.findIndex((existing) => existing.id === alert.id);
+    if (index === -1) {
+      alerts.value = [alert, ...alerts.value];
+    } else {
+      alerts.value[index] = { ...alerts.value[index], ...alert };
+    }
+    globalAlarmActive.value = alerts.value.some((a) => a.status === "published");
   };
 
   const activeAlerts = computed(() =>
@@ -250,5 +314,6 @@ export const useAlerts = () => {
     severityLabel,
     severityColor,
     refreshAlerts,
+    upsertAlertFromPayload,
   };
 };

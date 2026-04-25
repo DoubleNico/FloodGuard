@@ -31,8 +31,15 @@ export const useStream = () => {
         const data = JSON.parse(event.data);
         if (!data.event) return;
 
-        if (data.event === "alert:new" || data.event === "alert:updated" || data.event === "alert:mobile_emergency") {
-          const { refreshAlerts } = useAlerts();
+        if (data.event === "alert:mobile_emergency") {
+          const { upsertAlertFromPayload } = useAlerts();
+          upsertAlertFromPayload(data.payload);
+          return;
+        }
+
+        if (data.event === "alert:new" || data.event === "alert:updated") {
+          const { refreshAlerts, upsertAlertFromPayload } = useAlerts();
+          upsertAlertFromPayload(data.payload);
           refreshAlerts();
         }
 

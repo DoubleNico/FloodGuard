@@ -143,18 +143,24 @@ def get_alerts(
     severity: int | None = Query(None, ge=1, le=5),
     conn: sqlite3.Connection = Depends(db),
 ) -> dict[str, list[dict[str, Any]]]:
-    sql = "SELECT * FROM alerts"
+    sql = """
+        SELECT alerts.*,
+               mobile_users.full_name AS mobile_user_name,
+               mobile_users.safety_level AS mobile_safety_level
+        FROM alerts
+        LEFT JOIN mobile_users ON mobile_users.id = alerts.created_by
+    """
     filters: list[str] = []
     params: list[Any] = []
     if status:
-        filters.append("status = ?")
+        filters.append("alerts.status = ?")
         params.append(status)
     if severity:
-        filters.append("severity = ?")
+        filters.append("alerts.severity = ?")
         params.append(severity)
     if filters:
         sql += " WHERE " + " AND ".join(filters)
-    sql += " ORDER BY created_at DESC"
+    sql += " ORDER BY alerts.created_at DESC"
     return {"alerts": [_alert_from_row(row) for row in conn.execute(sql, params).fetchall()]}
 
 
@@ -490,7 +496,17 @@ async def stream(websocket: WebSocket) -> None:
 
 
 def _get_alert_or_404(conn: sqlite3.Connection, alert_id: str) -> dict[str, Any]:
-    row = conn.execute("SELECT * FROM alerts WHERE id = ?", (alert_id,)).fetchone()
+    row = conn.execute(
+        """
+        SELECT alerts.*,
+               mobile_users.full_name AS mobile_user_name,
+               mobile_users.safety_level AS mobile_safety_level
+        FROM alerts
+        LEFT JOIN mobile_users ON mobile_users.id = alerts.created_by
+        WHERE alerts.id = ?
+        """,
+        (alert_id,),
+    ).fetchone()
     if not row:
         raise HTTPException(status_code=404, detail="Alert not found")
     return _alert_from_row(row)
@@ -505,7 +521,17 @@ def _get_location_or_404(conn: sqlite3.Connection, location_id: str) -> dict[str
 
 def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
     mobility_info = _parse_json_field(row["mobility_info"]) if "mobility_info" in row.keys() else None
+    if mobility_info is None and "mobile_safety_level" in row.keys() and row["mobile_safety_level"] is not None:
+        safety_level = int(row["mobile_safety_level"])
+        mobility_info = {
+            "has_issues": safety_level >= 2,
+            "safety_level": safety_level,
+            "level": _mobile_safety_level_label(safety_level),
+            "user_status": "Man Down",
+        }
     user_status = mobility_info.get("user_status") if isinstance(mobility_info, dict) else None
+    user_name = row["user_name"] if "user_name" in row.keys() and row["user_name"] else None
+    user_name = user_name or (row["mobile_user_name"] if "mobile_user_name" in row.keys() else None)
     return {
         "id": row["id"],
         "type": row["type"],
@@ -521,13 +547,23 @@ def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "createdBy": row["created_by"],
         "broadcastSent": bool(row["broadcast_sent"]),
         "recipientCount": row["recipient_count"],
-        "user_name": row["user_name"] if "user_name" in row.keys() else None,
-        "userName": row["user_name"] if "user_name" in row.keys() else None,
+        "user_name": user_name,
+        "userName": user_name,
         "user_status": user_status,
         "userStatus": user_status,
         "mobility_info": mobility_info,
         "mobilityInfo": mobility_info,
     }
+
+
+def _mobile_safety_level_label(safety_level: int) -> str:
+    labels = {
+        0: "Safe",
+        1: "Moderate",
+        2: "At Risk",
+        3: "High Risk",
+    }
+    return labels.get(safety_level, "Unknown")
 
 
 def _parse_json_field(value: str | None) -> Any:

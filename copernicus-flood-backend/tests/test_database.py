@@ -12,6 +12,7 @@ from app.hydralis import (
     _create_token,
     _decode_token,
     _password_hash,
+    get_alerts,
     update_alert_status,
 )
 
@@ -120,6 +121,30 @@ def test_initialize_backfills_existing_mobile_alert_metadata(tmp_path: Path) -> 
         alert = _alert_from_row(row)
 
     assert alert["user_name"] == "Mihai Stan"
+    assert alert["userStatus"] == "Man Down"
+    assert alert["mobilityInfo"]["level"] == "High Risk"
+
+
+def test_alert_list_falls_back_to_mobile_user_metadata(tmp_path: Path) -> None:
+    settings = Settings(database_path=str(tmp_path / "fallback-alert.db"))
+    initialize_database(settings)
+    with connect(settings) as conn:
+        now = "2026-04-25T00:00:00Z"
+        conn.execute(
+            """
+            INSERT INTO alerts (
+                id, type, severity, status, title, message, affected_areas, created_at,
+                updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count,
+                user_name, mobility_info
+            ) VALUES (?, 'evacuation', 5, 'published', 'Mobile Emergency Alert', 'MAN-DOWN', '[]', ?, ?, ?, NULL, ?, 1, 0, NULL, NULL)
+            """,
+            ("ALR-998", now, now, now, "mob_003"),
+        )
+        conn.commit()
+        alerts = get_alerts(status=None, severity=None, conn=conn)["alerts"]
+
+    alert = next(item for item in alerts if item["id"] == "ALR-998")
+    assert alert["userName"] == "Mihai Stan"
     assert alert["userStatus"] == "Man Down"
     assert alert["mobilityInfo"]["level"] == "High Risk"
 

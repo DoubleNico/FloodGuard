@@ -28,6 +28,9 @@
             <div class="flex-1 min-w-0">
               <p class="text-sm font-medium text-(--label-text) truncate">{{ alert.title }}</p>
               <p class="text-xs text-(--hint-text)">{{ alert.affectedAreas.join(', ') }}</p>
+              <p v-if="alert.userName || alert.userStatus" class="text-[10px] text-(--hint-text) mt-0.5">
+                {{ alert.userName || 'Mobile user' }}<span v-if="alert.userStatus"> • {{ alert.userStatus }}</span>
+              </p>
             </div>
             <div class="flex items-center gap-2 shrink-0">
               <Badge :variant="alert.status === 'published' ? 'success' : alert.status === 'review' ? 'secondary' : 'outline'">

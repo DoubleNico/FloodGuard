@@ -60,6 +60,7 @@ class UserStatusRequest(BaseModel):
 class TriggerAlertRequest(BaseModel):
     user_id: str | None = None
     user_name: str | None = None
+    user_status: str | None = None
     mobility_info: dict[str, Any] | None = None
     current_location: CurrentLocation
     message: str = "Mobile emergency alert"
@@ -199,7 +200,7 @@ async def update_user_status(
     request: UserStatusRequest,
     conn: sqlite3.Connection = Depends(db),
 ) -> dict[str, Any]:
-    _get_mobile_user_or_404(conn, request.user_id)
+    mobile_user = _get_mobile_user_or_404(conn, request.user_id)
     status_id = next_prefixed_id(conn, "user_status_updates", "UST")
     timestamp = request.timestamp or utc_now_iso()
     now = utc_now_iso()
@@ -222,15 +223,21 @@ async def update_user_status(
     payload = {
         "id": status_id,
         "user_id": request.user_id,
+        "user_name": mobile_user["full_name"],
         "status": request.status,
         "current_location": request.current_location.model_dump(),
         "timestamp": timestamp,
     }
+    accidental_alert = None
+    if request.status == "Safe":
+        accidental_alert = _mark_latest_user_sos_accidental(conn, request.user_id)
     if request.status in {"Emergency", "Need Help"}:
         await manager.broadcast("user:status_emergency", payload)
     else:
         await manager.broadcast("user:status_update", payload)
-    return {"success": True, "status": payload}
+    if accidental_alert:
+        await manager.broadcast("alert:updated", accidental_alert)
+    return {"success": True, "status": payload, "accidental_alert": accidental_alert}
 
 
 @router.post("/alerts/trigger")
@@ -248,7 +255,9 @@ async def trigger_alert(
     now = utc_now_iso()
     trigger_id = next_prefixed_id(conn, "emergency_triggers", "EMG")
     worker_name = request.user_name or mobile_user["full_name"]
-    mobility_info = request.mobility_info or _mobility_info_from_user(mobile_user)
+    user_status = request.user_status or "Man Down"
+    mobility_info = {**_mobility_info_from_user(mobile_user), **(request.mobility_info or {})}
+    mobility_info["user_status"] = user_status
     mobility_json = json.dumps(mobility_info) if mobility_info else None
     conn.execute(
         """
@@ -270,7 +279,7 @@ async def trigger_alert(
     affected_area = f"{request.current_location.lat:.5f},{request.current_location.lng:.5f}"
     mobility_level = _mobility_level(mobility_info)
     mobility_text = f" | Mobility: {mobility_level}" if mobility_level else ""
-    alert_title = f"SOS: {worker_name}{mobility_text}"
+    alert_title = f"SOS: {worker_name} | Status: {user_status}{mobility_text}"
     conn.execute(
         """
         INSERT INTO alerts (
@@ -309,10 +318,30 @@ async def trigger_alert(
             "location": request.current_location.model_dump(),
             "user_id": str(user_id),
             "user_name": worker_name,
+            "user_status": user_status,
             "mobility_info": mobility_info,
         },
     )
     return payload
+
+
+@router.post("/alerts/accidental")
+async def mark_latest_alert_accidental(
+    request: UserStatusRequest | None = None,
+    authorization: str | None = Header(None),
+    conn: sqlite3.Connection = Depends(db),
+    settings: Settings = Depends(get_settings),
+) -> dict[str, Any]:
+    token_payload = _require_bearer_token(authorization, settings)
+    user_id = request.user_id if request else token_payload.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token does not include a user id")
+    _get_mobile_user_or_404(conn, str(user_id))
+    alert = _mark_latest_user_sos_accidental(conn, str(user_id))
+    if not alert:
+        raise HTTPException(status_code=404, detail="No active SOS alert found for this user")
+    await manager.broadcast("alert:updated", alert)
+    return {"success": True, "alert": alert}
 
 
 def parse_radius_meters(value: str) -> float:
@@ -383,6 +412,37 @@ def _mobility_level(mobility_info: dict[str, Any] | None) -> str | None:
     if isinstance(safety_level, int):
         return _safety_level_label(safety_level)
     return None
+
+
+def _mark_latest_user_sos_accidental(conn: sqlite3.Connection, user_id: str) -> dict[str, Any] | None:
+    row = conn.execute(
+        """
+        SELECT id FROM alerts
+        WHERE created_by = ?
+          AND status IN ('published', 'approved', 'updated', 'review')
+          AND title LIKE 'SOS:%'
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (user_id,),
+    ).fetchone()
+    if not row:
+        return None
+    now = utc_now_iso()
+    current = _get_alert_or_404(conn, row["id"])
+    message = current["message"]
+    if "Accidental alert:" not in message:
+        message = "Accidental alert: worker confirmed safe from the mobile app."
+    conn.execute(
+        """
+        UPDATE alerts
+        SET status = 'accidental', message = ?, updated_at = ?, closed_at = COALESCE(closed_at, ?)
+        WHERE id = ?
+        """,
+        (message, now, now, row["id"]),
+    )
+    conn.commit()
+    return _get_alert_or_404(conn, row["id"])
 
 
 def _require_bearer_token(authorization: str | None, settings: Settings) -> dict[str, Any]:

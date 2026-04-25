@@ -9,10 +9,12 @@ from app.hydralis import _create_token
 from app.mobile import (
     CurrentLocation,
     TriggerAlertRequest,
+    UserStatusRequest,
     _mobile_user_from_row,
     distance_meters,
     parse_radius_meters,
     trigger_alert,
+    update_user_status,
 )
 
 
@@ -58,6 +60,33 @@ def test_mobile_sos_creates_dispatch_alert_with_user_and_mobility(tmp_path: Path
         row = conn.execute("SELECT * FROM alerts WHERE id = ?", (response["alert_id"],)).fetchone()
 
     assert response["broadcast"]["user_name"] == "John Doe"
+    assert response["broadcast"]["user_status"] == "Man Down"
     assert response["broadcast"]["mobility_info"]["level"] == "High"
     assert "John Doe" in row["title"]
+    assert "Status: Man Down" in row["title"]
     assert "Mobility: High" in row["title"]
+
+
+def test_safe_status_marks_latest_sos_accidental(tmp_path: Path) -> None:
+    settings = Settings(database_path=str(tmp_path / "mobile-alert-test.db"))
+    initialize_database(settings)
+    token = _create_token({"id": "mob_001", "email": "john@example.com", "role": "mobile"}, settings.jwt_secret)
+    trigger_request = TriggerAlertRequest(
+        current_location=CurrentLocation(lat=45.4353, lng=28.0080),
+        user_status="Man Down",
+    )
+
+    with connect(settings) as conn:
+        response = asyncio.run(
+            trigger_alert(trigger_request, authorization=f"Bearer {token}", conn=conn, settings=settings)
+        )
+        status_request = UserStatusRequest(
+            user_id="mob_001",
+            status="Safe",
+            current_location=CurrentLocation(lat=45.4353, lng=28.0080),
+        )
+        status_response = asyncio.run(update_user_status(status_request, conn=conn))
+        row = conn.execute("SELECT * FROM alerts WHERE id = ?", (response["alert_id"],)).fetchone()
+
+    assert status_response["accidental_alert"]["id"] == response["alert_id"]
+    assert row["status"] == "accidental"

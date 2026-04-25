@@ -25,6 +25,7 @@ export interface FloodAlert {
   broadcastSent: boolean;
   recipientCount: number;
   userName?: string;
+  userStatus?: string;
   mobilityInfo?: any;
 }
 
@@ -69,11 +70,15 @@ interface AlertApiRow {
   broadcastSent: boolean;
   recipientCount: number;
   user_name?: string;
+  userName?: string;
+  user_status?: string;
+  userStatus?: string;
   mobility_info?: any;
+  mobilityInfo?: any;
 }
 
 const parseAlert = (raw: AlertApiRow): FloodAlert => {
-  let mobility = raw.mobility_info;
+  let mobility = raw.mobility_info ?? raw.mobilityInfo;
   if (typeof mobility === "string") {
     try {
       mobility = JSON.parse(mobility);
@@ -88,7 +93,11 @@ const parseAlert = (raw: AlertApiRow): FloodAlert => {
     updatedAt: new Date(raw.updatedAt),
     publishedAt: raw.publishedAt ? new Date(raw.publishedAt) : undefined,
     closedAt: raw.closedAt ? new Date(raw.closedAt) : undefined,
-    userName: raw.user_name,
+    userName: raw.user_name ?? raw.userName,
+    userStatus:
+      raw.user_status ??
+      raw.userStatus ??
+      (typeof mobility === "object" && mobility ? mobility.user_status : undefined),
     mobilityInfo: mobility,
   };
 };
@@ -113,9 +122,7 @@ export const useAlerts = () => {
       const data = await get<{ alerts: AlertApiRow[] }>("/api/v1/alerts");
       alerts.value = data.alerts.map(parseAlert);
       const hasPublished = alerts.value.some((a) => a.status === "published");
-      if (hasPublished && !globalAlarmActive.value) {
-        globalAlarmActive.value = true;
-      }
+      globalAlarmActive.value = hasPublished;
     } catch {
       // keep existing data on error
     } finally {

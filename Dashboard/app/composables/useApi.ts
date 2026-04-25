@@ -3,6 +3,7 @@ import type { FetchOptions } from "ofetch";
 export const useApi = () => {
   const config = useRuntimeConfig();
   const token = useCookie<string | null>("hydralis_token");
+  const requestTimeoutMs = 8000;
 
   const apiFetch = <T>(path: string, opts: FetchOptions = {}): Promise<T> => {
     const headers: Record<string, string> = {
@@ -12,6 +13,7 @@ export const useApi = () => {
       headers.Authorization = `Bearer ${token.value}`;
     }
     return $fetch<T>(`${config.public.apiBase}${path}`, {
+      timeout: requestTimeoutMs,
       ...opts,
       headers,
     });

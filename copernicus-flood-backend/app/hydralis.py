@@ -504,6 +504,8 @@ def _get_location_or_404(conn: sqlite3.Connection, location_id: str) -> dict[str
 
 
 def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
+    mobility_info = _parse_json_field(row["mobility_info"]) if "mobility_info" in row.keys() else None
+    user_status = mobility_info.get("user_status") if isinstance(mobility_info, dict) else None
     return {
         "id": row["id"],
         "type": row["type"],
@@ -520,7 +522,11 @@ def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "broadcastSent": bool(row["broadcast_sent"]),
         "recipientCount": row["recipient_count"],
         "user_name": row["user_name"] if "user_name" in row.keys() else None,
-        "mobility_info": _parse_json_field(row["mobility_info"]) if "mobility_info" in row.keys() else None,
+        "userName": row["user_name"] if "user_name" in row.keys() else None,
+        "user_status": user_status,
+        "userStatus": user_status,
+        "mobility_info": mobility_info,
+        "mobilityInfo": mobility_info,
     }
 
 

@@ -17,10 +17,14 @@
         <Icon name="mdi:check-circle" class="h-3 w-3" />
         Broadcast sent to {{ alert.recipientCount.toLocaleString() }} citizens
       </p>
-      <div v-if="alert.userName || mobilityLabel" class="mt-2 p-2 rounded-lg border" :class="identityPanelClass">
+      <div v-if="alert.userName || userStatusLabel || mobilityLabel" class="mt-2 p-2 rounded-lg border" :class="identityPanelClass">
         <p v-if="alert.userName" class="text-xs font-bold flex items-center gap-1" :class="identityTextClass">
           <Icon name="mdi:account-alert" class="h-3 w-3" />
           Reported by: {{ alert.userName }}
+        </p>
+        <p v-if="userStatusLabel" class="text-[10px] mt-0.5 flex items-center gap-1" :class="identitySubtextClass">
+          <Icon name="mdi:heart-pulse" class="h-3 w-3" />
+          User status: {{ userStatusLabel }}
         </p>
         <p v-if="mobilityLabel" class="text-[10px] mt-0.5 flex items-center gap-1" :class="identitySubtextClass">
           <Icon name="mdi:human-walker" class="h-3 w-3" />
@@ -66,6 +70,8 @@ const statusVariant = computed(() => {
 });
 
 const statusLabel = computed(() => props.alert.status === "accidental" ? "accidental" : props.alert.status);
+
+const userStatusLabel = computed(() => props.alert.userStatus || props.alert.mobilityInfo?.user_status || "");
 
 const mobilityLabel = computed(() => {
   const mobility = props.alert.mobilityInfo;

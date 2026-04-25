@@ -24,7 +24,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   final FlutterTts _flutterTts = FlutterTts();
   
   // Backend data
-  String _copernicusRisk = 'LOADING...';
+  String _copernicusRisk = 'OFFLINE MODE';
   String? _activeAlertMessage;
   StreamSubscription? _wsSubscription;
   Timer? _telemetryTimer;
@@ -57,9 +57,28 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _initBackend();
   }
 
+  Future<void> _fetchMapData() async {
+    final data = await BackendService().fetchMapData(_workerPosition);
+    if (!mounted) return;
+
+    setState(() {
+      if (data == null) {
+        _copernicusRisk = 'OFFLINE MODE';
+      } else if (data['flood_warning']?['copernicus']?['error'] == null) {
+        _copernicusRisk = 'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
+      } else {
+        _copernicusRisk = 'LOW RISK (Mock)';
+      }
+    });
+  }
+
   Future<void> _initBackend() async {
-    await BackendService().initialize();
-    
+    try {
+      await BackendService().initialize();
+    } catch (e) {
+      print("Backend init failed: $e");
+    }
+
     // Initial data fetch
     _fetchMapData();
 
@@ -73,7 +92,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
       print("Dashboard received event: ${data['event']}");
       if (!mounted) return;
       final event = data['event'];
-      
+
       // Update status from Web Dashboard
       if (event == 'user:status_update') {
         final payload = data['payload'];
@@ -100,19 +119,6 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
     });
-  }
-
-  Future<void> _fetchMapData() async {
-    final data = await BackendService().fetchMapData(_workerPosition);
-    if (data != null && mounted) {
-      setState(() {
-        if (data['flood_warning']?['copernicus']?['error'] == null) {
-           _copernicusRisk = 'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
-        } else {
-           _copernicusRisk = 'LOW RISK (Mock)';
-        }
-      });
-    }
   }
 
   Future<void> _initTts() async {
@@ -222,6 +228,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
     _movementTimer?.cancel();
     setState(() {
       _demoState = DemoState.sosTriggered;
+      _currentStatus = 'Emergency';
     });
     
     // Immediately send the SOS alert so it appears on the dashboard
@@ -236,13 +243,17 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final hasIssues = prefs.getBool('hasMobilityIssues') ?? false;
     final gravity = prefs.getString('mobilityGravity') ?? 'Low';
 
-    final mobility = {
+    final Map<String, dynamic> mobility = {
       "has_issues": hasIssues,
       "gravity": gravity,
       "level": gravity,
     };
 
-    return await BackendService().triggerManDown(_workerPosition, mobilityInfo: mobility);
+    return await BackendService().triggerManDown(
+      _workerPosition,
+      mobilityInfo: mobility,
+      userStatus: "Man Down",
+    );
   }
 
   void _showSosDialog() {
@@ -278,18 +289,22 @@ class _DashboardScreenState extends State<DashboardScreen> {
               ),
               actions: [
                 TextButton(
-                  onPressed: () {
+                  onPressed: () async {
                     dialogTimer?.cancel();
                     Navigator.pop(context);
                     if (mounted) {
                       setState(() {
                         _demoState = DemoState.safe;
+                        _currentStatus = 'Safe';
                       });
                     }
-                    BackendService().postUserStatus(_workerPosition, 'Safe');
+                    await BackendService().postUserStatus(_workerPosition, 'Safe');
                     if (_currentAlertId != null) {
-                      BackendService().cancelAlert(_currentAlertId!);
+                      await BackendService().cancelAlert(_currentAlertId!);
+                    } else {
+                      await BackendService().cancelLatestAlert();
                     }
+                    _currentAlertId = null;
                   },
                   child: const Text('I\'M FINE', style: TextStyle(color: Colors.greenAccent, fontWeight: FontWeight.bold)),
                 ),

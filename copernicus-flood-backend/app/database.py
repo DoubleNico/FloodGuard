@@ -186,6 +186,16 @@ def create_schema(conn: sqlite3.Connection) -> None:
         );
         """
     )
+    _ensure_column(conn, "alerts", "user_name", "TEXT")
+    _ensure_column(conn, "alerts", "mobility_info", "TEXT")
+    _ensure_column(conn, "emergency_triggers", "user_name", "TEXT")
+    _ensure_column(conn, "emergency_triggers", "mobility_info", "TEXT")
+
+
+def _ensure_column(conn: sqlite3.Connection, table: str, column: str, definition: str) -> None:
+    existing = {row["name"] for row in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+    if column not in existing:
+        conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {definition}")
 
 
 def seed_database(conn: sqlite3.Connection) -> None:

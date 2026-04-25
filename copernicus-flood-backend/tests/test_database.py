@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import sqlite3
 from pathlib import Path
 
 from app.config import Settings
-from app.database import connect, initialize_database, next_prefixed_id
+from app.database import connect, create_schema, initialize_database, next_prefixed_id
 from app.hydralis import (
     UpdateAlertStatusRequest,
     _alert_from_row,
@@ -50,6 +51,50 @@ def test_alert_row_maps_to_api_shape(tmp_path: Path) -> None:
     assert alert["affectedAreas"]
     assert "createdAt" in alert
     assert "broadcastSent" in alert
+
+
+def test_schema_backfills_mobile_alert_columns(tmp_path: Path) -> None:
+    db_path = tmp_path / "legacy.db"
+    conn = sqlite3.connect(db_path)
+    conn.row_factory = sqlite3.Row
+    conn.executescript(
+        """
+        CREATE TABLE alerts (
+            id TEXT PRIMARY KEY,
+            type TEXT NOT NULL,
+            severity INTEGER NOT NULL,
+            status TEXT NOT NULL,
+            title TEXT NOT NULL,
+            message TEXT NOT NULL,
+            affected_areas TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            updated_at TEXT NOT NULL,
+            published_at TEXT,
+            closed_at TEXT,
+            created_by TEXT NOT NULL,
+            broadcast_sent INTEGER NOT NULL DEFAULT 0,
+            recipient_count INTEGER NOT NULL DEFAULT 0
+        );
+        CREATE TABLE emergency_triggers (
+            id TEXT PRIMARY KEY,
+            user_id TEXT,
+            lat REAL NOT NULL,
+            lng REAL NOT NULL,
+            message TEXT NOT NULL,
+            created_at TEXT NOT NULL,
+            acknowledged INTEGER NOT NULL DEFAULT 0
+        );
+        """
+    )
+
+    create_schema(conn)
+
+    alert_columns = {row["name"] for row in conn.execute("PRAGMA table_info(alerts)").fetchall()}
+    trigger_columns = {row["name"] for row in conn.execute("PRAGMA table_info(emergency_triggers)").fetchall()}
+    conn.close()
+
+    assert {"user_name", "mobility_info"} <= alert_columns
+    assert {"user_name", "mobility_info"} <= trigger_columns
 
 
 def test_alert_can_be_marked_accidental(tmp_path: Path) -> None:

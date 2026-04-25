@@ -12,6 +12,7 @@ class BackendService {
   final String baseUrl = 'http://10.0.2.2:8000/api';
   final String apiV1Url = 'http://10.0.2.2:8000/api/v1';
   final String wsUrl = 'ws://10.0.2.2:8000/api/v1/stream';
+  static const Duration _requestTimeout = Duration(seconds: 8);
 
   String? _token;
   String? _userId;
@@ -40,7 +41,7 @@ class BackendService {
         Uri.parse('$baseUrl/auth/login'),
         headers: {"Content-Type": "application/json"},
         body: jsonEncode(loginPayload),
-      );
+      ).timeout(_requestTimeout);
 
       if (loginRes.statusCode == 200) {
         final data = jsonDecode(loginRes.body);
@@ -62,7 +63,7 @@ class BackendService {
           Uri.parse('$baseUrl/auth/signup'),
           headers: {"Content-Type": "application/json"},
           body: jsonEncode(signupPayload),
-        );
+        ).timeout(_requestTimeout);
 
         if (signupRes.statusCode == 201) {
           final data = jsonDecode(signupRes.body);
@@ -118,7 +119,7 @@ class BackendService {
       final res = await http.get(
         Uri.parse('$baseUrl/map/data?lat=${location.latitude}&lng=${location.longitude}&radius=10km'),
         headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
-      );
+      ).timeout(_requestTimeout);
 
       if (res.statusCode == 200) {
         return jsonDecode(res.body);
@@ -152,19 +153,24 @@ class BackendService {
           if (_token != null) "Authorization": "Bearer $_token"
         },
         body: jsonEncode(payload),
-      );
+      ).timeout(_requestTimeout);
     } catch (e) {
       print("Post user status error: $e");
     }
   }
 
-  Future<String?> triggerManDown(LatLng location, {Map<String, dynamic>? mobilityInfo}) async {
+  Future<String?> triggerManDown(
+    LatLng location, {
+    Map<String, dynamic>? mobilityInfo,
+    String userStatus = "Man Down",
+  }) async {
     if (_userId == null || _token == null) return null;
 
     try {
       final payload = {
         "user_id": _userId,
         "user_name": _userName ?? "Unknown Worker",
+        "user_status": userStatus,
         "mobility_info": mobilityInfo,
         "current_location": {
           "lat": location.latitude,
@@ -180,7 +186,7 @@ class BackendService {
           "Authorization": "Bearer $_token"
         },
         body: jsonEncode(payload),
-      );
+      ).timeout(_requestTimeout);
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         return data['alert_id'];
@@ -201,7 +207,7 @@ class BackendService {
           if (_token != null) "Authorization": "Bearer $_token",
         },
         body: jsonEncode({"message": "Accidental alert: worker confirmed safe from the mobile app."}),
-      );
+      ).timeout(_requestTimeout);
       await http.patch(
         Uri.parse('$apiV1Url/alerts/$alertId/status'),
         headers: {
@@ -209,9 +215,25 @@ class BackendService {
           if (_token != null) "Authorization": "Bearer $_token",
         },
         body: jsonEncode({"status": "accidental"}),
-      );
+      ).timeout(_requestTimeout);
     } catch (e) {
       print("Cancel alert error: $e");
+    }
+  }
+
+  Future<void> cancelLatestAlert() async {
+    if (_token == null) return;
+
+    try {
+      await http.post(
+        Uri.parse('$baseUrl/alerts/accidental'),
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": "Bearer $_token",
+        },
+      ).timeout(_requestTimeout);
+    } catch (e) {
+      print("Cancel latest alert error: $e");
     }
   }
 }

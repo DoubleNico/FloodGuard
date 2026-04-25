@@ -7,6 +7,7 @@ from typing import Any, Protocol
 from app.exceptions import NoStatisticsError
 from app.geo import bounds_payload_from_area, resolution_degrees_for_area
 from app.models import (
+    FloodHeatmapRequest,
     FloodDetectionRequest,
     FloodDetectionResponse,
     LatestSceneRequest,
@@ -27,6 +28,9 @@ class FloodDataClient(Protocol):
         ...
 
     async def statistics(self, payload: dict[str, Any]) -> dict[str, Any]:
+        ...
+
+    async def process_image(self, payload: dict[str, Any]) -> bytes:
         ...
 
 
@@ -177,6 +181,81 @@ def build_statistics_payload(
     }
 
 
+async def build_heatmap_png(
+    request: FloodHeatmapRequest,
+    client: FloodDataClient,
+) -> tuple[bytes, SatelliteScene]:
+    latest_scene = (
+        await client.catalog_latest(
+            LatestSceneRequest(
+                area=request.area,
+                lookback_days=request.lookback_days,
+                limit=25,
+                acquisition_mode=request.acquisition_mode,
+                polarization=request.polarization,
+                orbit_direction=request.orbit_direction,
+            )
+        )
+    )[0]
+    time_from, time_to = day_bounds(latest_scene.datetime)
+    payload = build_heatmap_payload(
+        request=request,
+        time_from=time_from,
+        time_to=time_to,
+    )
+    return await client.process_image(payload), latest_scene
+
+
+def build_heatmap_payload(
+    *,
+    request: FloodHeatmapRequest,
+    time_from: datetime,
+    time_to: datetime,
+) -> dict[str, Any]:
+    data_filter: dict[str, Any] = {
+        "timeRange": {"from": iso_z(time_from), "to": iso_z(time_to)},
+        "acquisitionMode": request.acquisition_mode,
+        "polarization": request.polarization,
+        "resolution": "HIGH",
+        "mosaickingOrder": "mostRecent",
+    }
+    if request.orbit_direction:
+        data_filter["orbitDirection"] = request.orbit_direction
+
+    return {
+        "input": {
+            "bounds": bounds_payload_from_area(request.area),
+            "data": [
+                {
+                    "type": "sentinel-1-grd",
+                    "dataFilter": data_filter,
+                    "processing": {
+                        "orthorectify": "true",
+                        "backCoeff": "GAMMA0_TERRAIN",
+                        "demInstance": "COPERNICUS_30",
+                        "speckleFilter": {
+                            "type": "LEE",
+                            "windowSizeX": 5,
+                            "windowSizeY": 5,
+                        },
+                    },
+                }
+            ],
+        },
+        "output": {
+            "width": request.width,
+            "height": request.height,
+            "responses": [
+                {
+                    "identifier": "default",
+                    "format": {"type": "image/png"},
+                }
+            ],
+        },
+        "evalscript": heatmap_evalscript(request.water_threshold_db),
+    }
+
+
 def water_evalscript(water_threshold_db: float) -> str:
     return f"""
 //VERSION=3
@@ -203,6 +282,41 @@ function evaluatePixel(samples) {{
     vv_db: [vvDb],
     dataMask: [valid ? 1 : 0, valid ? 1 : 0]
   }};
+}}
+""".strip()
+
+
+def heatmap_evalscript(water_threshold_db: float) -> str:
+    medium_threshold = water_threshold_db + 2.0
+    low_threshold = water_threshold_db + 4.0
+    return f"""
+//VERSION=3
+function setup() {{
+  return {{
+    input: [{{
+      bands: ["VV", "dataMask"],
+      units: "LINEAR_POWER"
+    }}],
+    output: {{ id: "default", bands: 4 }}
+  }};
+}}
+
+function evaluatePixel(samples) {{
+  if (samples.dataMask !== 1 || samples.VV <= 0) {{
+    return [0, 0, 0, 0];
+  }}
+
+  var vvDb = 10.0 * Math.log(samples.VV) / Math.LN10;
+  if (vvDb <= {water_threshold_db:.6f}) {{
+    return [0.92, 0.12, 0.12, 0.82];
+  }}
+  if (vvDb <= {medium_threshold:.6f}) {{
+    return [1.00, 0.62, 0.10, 0.68];
+  }}
+  if (vvDb <= {low_threshold:.6f}) {{
+    return [0.10, 0.48, 0.96, 0.42];
+  }}
+  return [0, 0, 0, 0];
 }}
 """.strip()
 

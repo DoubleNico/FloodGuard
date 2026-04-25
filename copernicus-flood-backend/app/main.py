@@ -1,22 +1,45 @@
 from __future__ import annotations
 
 from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
 
-from fastapi import Depends, FastAPI, HTTPException
+from fastapi import Depends, FastAPI, HTTPException, Query
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import HTMLResponse, Response
 
+from app.admin_boundaries import DEFAULT_ADMIN_LEVELS, fetch_admin_boundaries
 from app.config import Settings, get_settings
+from app.database import initialize_database
+from app.efas import EfasMapRequest, get_efas_layers, get_location_warnings, get_map_png
 from app.exceptions import AppError
-from app.flood import detect_flood
-from app.models import FloodDetectionRequest, FloodDetectionResponse, LatestSceneRequest, SatelliteScene
+from app.flood import build_heatmap_png, detect_flood
+from app.hydralis import router as hydralis_router
+from app.map_page import MAP_HTML
+from app.models import (
+    AreaInput,
+    CenterRadius,
+    FloodDetectionRequest,
+    FloodDetectionResponse,
+    FloodHeatmapRequest,
+    LatestSceneRequest,
+    SatelliteScene,
+)
 from app.sentinel_hub import SentinelHubClient
 
 settings = get_settings()
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+    initialize_database(settings)
+    yield
+
 
 app = FastAPI(
     title=settings.app_name,
     version="0.1.0",
     description="HTTP API for Sentinel-1 flood screening using Copernicus Data Space Ecosystem.",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -26,6 +49,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+app.include_router(hydralis_router)
 
 
 async def copernicus_client(
@@ -38,6 +63,11 @@ async def copernicus_client(
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok"}
+
+
+@app.get("/map", response_class=HTMLResponse)
+async def flood_map() -> HTMLResponse:
+    return HTMLResponse(MAP_HTML)
 
 
 @app.get("/v1/config")
@@ -71,6 +101,137 @@ async def flood_detect(
         return await detect_flood(request, client)
     except AppError as exc:
         raise _http_error(exc) from exc
+
+
+@app.get("/v1/flood/heatmap.png")
+async def flood_heatmap_png(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    radius_meters: float = Query(1_000, gt=0, le=100_000),
+    lookback_days: int = Query(30, ge=1, le=180),
+    water_threshold_db: float = Query(-17.0, ge=-30, le=-5),
+    width: int = Query(768, ge=64, le=2048),
+    height: int = Query(768, ge=64, le=2048),
+    client: SentinelHubClient = Depends(copernicus_client),
+) -> Response:
+    request = FloodHeatmapRequest(
+        area=AreaInput(
+            center=CenterRadius(
+                latitude=latitude,
+                longitude=longitude,
+                radius_meters=radius_meters,
+            )
+        ),
+        lookback_days=lookback_days,
+        water_threshold_db=water_threshold_db,
+        width=width,
+        height=height,
+    )
+    try:
+        image, latest_scene = await build_heatmap_png(request, client)
+    except AppError as exc:
+        raise _http_error(exc) from exc
+    return Response(
+        content=image,
+        media_type="image/png",
+        headers={
+            "Cache-Control": "no-store",
+            "X-Sentinel-Scene-Id": latest_scene.id,
+            "X-Sentinel-Scene-Datetime": latest_scene.datetime.isoformat(),
+        },
+    )
+
+
+@app.get("/v1/admin/boundaries")
+async def admin_boundaries(
+    west: float = Query(..., ge=-180, le=180),
+    south: float = Query(..., ge=-90, le=90),
+    east: float = Query(..., ge=-180, le=180),
+    north: float = Query(..., ge=-90, le=90),
+    admin_levels: str = Query(",".join(DEFAULT_ADMIN_LEVELS)),
+    settings_dependency: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    if west >= east or south >= north:
+        raise HTTPException(status_code=422, detail="west/east or south/north bounds are invalid")
+    if east - west > 5 or north - south > 5:
+        raise HTTPException(status_code=422, detail="administrative boundary bbox is too large")
+    levels = tuple(
+        level.strip()
+        for level in admin_levels.split(",")
+        if level.strip().isdigit() and 2 <= int(level.strip()) <= 10
+    )
+    try:
+        return await fetch_admin_boundaries(
+            west=west,
+            south=south,
+            east=east,
+            north=north,
+            admin_levels=levels or DEFAULT_ADMIN_LEVELS,
+            settings=settings_dependency,
+        )
+    except AppError as exc:
+        raise _http_error(exc) from exc
+
+
+@app.get("/v1/efas/layers")
+async def efas_layers(
+    settings_dependency: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return await get_efas_layers(settings_dependency)
+    except AppError as exc:
+        raise _http_error(exc) from exc
+
+
+@app.get("/v1/efas/location")
+async def efas_location(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    radius_meters: float = Query(50_000, gt=1_000, le=250_000),
+    settings_dependency: Settings = Depends(get_settings),
+) -> dict[str, object]:
+    try:
+        return await get_location_warnings(
+            latitude=latitude,
+            longitude=longitude,
+            radius_meters=radius_meters,
+            settings=settings_dependency,
+        )
+    except AppError as exc:
+        raise _http_error(exc) from exc
+
+
+@app.get("/v1/efas/map.png")
+async def efas_map_png(
+    latitude: float = Query(..., ge=-90, le=90),
+    longitude: float = Query(..., ge=-180, le=180),
+    radius_meters: float = Query(50_000, gt=1_000, le=250_000),
+    layer: str = Query("mapserver:MIC2"),
+    width: int = Query(768, ge=64, le=2048),
+    height: int = Query(768, ge=64, le=2048),
+    time: str | None = Query(None),
+    settings_dependency: Settings = Depends(get_settings),
+) -> Response:
+    try:
+        image = await get_map_png(
+            EfasMapRequest(
+                latitude=latitude,
+                longitude=longitude,
+                radius_meters=radius_meters,
+                layer=layer,
+                width=width,
+                height=height,
+                time=time,
+            ),
+            settings_dependency,
+        )
+    except AppError as exc:
+        raise _http_error(exc) from exc
+    return Response(
+        content=image,
+        media_type="image/png",
+        headers={"Cache-Control": "no-store", "X-EFAS-Layer": layer},
+    )
 
 
 def _http_error(exc: AppError) -> HTTPException:

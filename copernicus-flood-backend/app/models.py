@@ -113,6 +113,17 @@ class LatestSceneRequest(BaseModel):
     orbit_direction: OrbitDirection | None = None
 
 
+class FloodHeatmapRequest(BaseModel):
+    area: AreaInput
+    lookback_days: int = Field(30, ge=1, le=180)
+    width: int = Field(768, ge=64, le=2048)
+    height: int = Field(768, ge=64, le=2048)
+    water_threshold_db: float = Field(-17.0, ge=-30, le=-5)
+    acquisition_mode: AcquisitionMode = "IW"
+    polarization: Polarization = "DV"
+    orbit_direction: OrbitDirection | None = None
+
+
 class SatelliteScene(BaseModel):
     id: str
     collection: str = "sentinel-1-grd"
@@ -155,4 +166,3 @@ class FloodDetectionResponse(BaseModel):
     water_fraction_change: float | None = None
     method: str
     warnings: list[str] = Field(default_factory=list)
-

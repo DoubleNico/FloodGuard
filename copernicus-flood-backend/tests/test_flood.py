@@ -3,13 +3,15 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from app.flood import (
+    build_heatmap_payload,
     build_statistics_payload,
     classify_status,
     extract_water_stats,
+    heatmap_evalscript,
     water_evalscript,
     weighted_water_fraction,
 )
-from app.models import AreaInput, CenterRadius, FloodDetectionRequest, SatelliteScene, WaterStats
+from app.models import AreaInput, CenterRadius, FloodDetectionRequest, FloodHeatmapRequest, WaterStats
 
 
 def test_water_evalscript_embeds_threshold() -> None:
@@ -83,6 +85,30 @@ def test_statistics_payload_uses_float_histogram_bins() -> None:
     )
 
     assert payload["calculations"]["water"]["histograms"]["water"]["bins"] == [0.0, 0.5, 1.5]
+
+
+def test_heatmap_payload_targets_process_png() -> None:
+    request = FloodHeatmapRequest(
+        area=AreaInput(center=CenterRadius(latitude=45, longitude=26, radius_meters=500)),
+        width=512,
+        height=256,
+    )
+    dt = datetime(2026, 4, 20, tzinfo=timezone.utc)
+
+    payload = build_heatmap_payload(request=request, time_from=dt, time_to=dt)
+
+    assert payload["output"]["width"] == 512
+    assert payload["output"]["height"] == 256
+    assert payload["output"]["responses"][0]["format"]["type"] == "image/png"
+    assert payload["input"]["data"][0]["dataFilter"]["timeRange"]["from"] == "2026-04-20T00:00:00Z"
+
+
+def test_heatmap_evalscript_returns_rgba_classes() -> None:
+    script = heatmap_evalscript(-17)
+
+    assert "bands: 4" in script
+    assert "vvDb <= -17.000000" in script
+    assert "return [0, 0, 0, 0]" in script
 
 
 def test_weighted_water_fraction() -> None:

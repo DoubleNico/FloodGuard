@@ -95,6 +95,20 @@ class SentinelHubClient:
     async def statistics(self, payload: dict[str, Any]) -> dict[str, Any]:
         return await self.post_json("/statistics/v1", payload)
 
+    async def process_image(self, payload: dict[str, Any]) -> bytes:
+        token = await self.get_access_token()
+        response = await self._send(
+            "POST",
+            f"{self.settings.sentinel_hub_base_url}/process/v1",
+            json=payload,
+            headers={
+                "Authorization": f"Bearer {token}",
+                "Content-Type": "application/json",
+                "Accept": "image/png",
+            },
+        )
+        return response.content
+
     async def post_json(self, path: str, payload: dict[str, Any]) -> dict[str, Any]:
         token = await self.get_access_token()
         response = await self._send(

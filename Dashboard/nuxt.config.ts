@@ -16,6 +16,9 @@ export default defineNuxtConfig({
     plugins: [tailwindcss()],
   },
   css: ["./app/assets/css/main.css"],
+  build: {
+    transpile: ["@vue-leaflet/vue-leaflet"],
+  },
   i18n: {
     defaultLocale: "en",
     locales: [
@@ -32,6 +35,7 @@ export default defineNuxtConfig({
   // Add here custom components so we can use them without importing
   components: [
     "~/components",
+    "~/components/dashboard",
     "~/components/ui/button",
     "~/components/ui/switch",
     "~/components/ui/input",
@@ -56,3 +60,4 @@ export default defineNuxtConfig({
     "~/components/ui/link",
   ],
 });
+

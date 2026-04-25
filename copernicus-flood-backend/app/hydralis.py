@@ -485,5 +485,26 @@ def _create_token(user: dict[str, Any], secret: str) -> str:
     return f"{signing_input}.{_b64url(signature)}"
 
 
+def _decode_token(token: str, secret: str) -> dict[str, Any]:
+    try:
+        header_b64, payload_b64, signature_b64 = token.split(".")
+    except ValueError as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
+    signing_input = f"{header_b64}.{payload_b64}"
+    expected = hmac.new(secret.encode("utf-8"), signing_input.encode("utf-8"), hashlib.sha256).digest()
+    actual = _b64url_decode(signature_b64)
+    if not hmac.compare_digest(expected, actual):
+        raise HTTPException(status_code=401, detail="Invalid token")
+    try:
+        return json.loads(_b64url_decode(payload_b64).decode("utf-8"))
+    except (json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise HTTPException(status_code=401, detail="Invalid token") from exc
+
+
 def _b64url(value: bytes) -> str:
     return base64.urlsafe_b64encode(value).decode("ascii").rstrip("=")
+
+
+def _b64url_decode(value: str) -> bytes:
+    padding = "=" * (-len(value) % 4)
+    return base64.urlsafe_b64decode(f"{value}{padding}")

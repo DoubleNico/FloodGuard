@@ -35,6 +35,12 @@ pip install -r requirements-dev.txt
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
+Or run through plain Python:
+
+```bash
+python run.py
+```
+
 OpenAPI docs are available at `http://127.0.0.1:8000/docs`.
 
 The browser map is available at `http://127.0.0.1:8000/map`.

@@ -4,7 +4,7 @@ import sqlite3
 from collections.abc import Iterator
 from typing import Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 
 from app.config import Settings, get_settings
@@ -15,6 +15,7 @@ from app.flood import detect_flood
 from app.hydralis import (
     _alert_from_row,
     _create_token,
+    _decode_token,
     _estimate_recipients,
     _get_alert_or_404,
     _location_from_row,
@@ -232,8 +233,15 @@ async def update_user_status(
 @router.post("/alerts/trigger")
 async def trigger_alert(
     request: TriggerAlertRequest,
+    authorization: str | None = Header(None),
     conn: sqlite3.Connection = Depends(db),
+    settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
+    token_payload = _require_bearer_token(authorization, settings)
+    user_id = request.user_id or token_payload.get("id")
+    if not user_id:
+        raise HTTPException(status_code=401, detail="Token does not include a user id")
+    _get_mobile_user_or_404(conn, str(user_id))
     now = utc_now_iso()
     trigger_id = next_prefixed_id(conn, "emergency_triggers", "EMG")
     conn.execute(
@@ -243,7 +251,7 @@ async def trigger_alert(
         """,
         (
             trigger_id,
-            request.user_id,
+            str(user_id),
             request.current_location.lat,
             request.current_location.lng,
             request.message,
@@ -267,7 +275,7 @@ async def trigger_alert(
             now,
             now,
             now,
-            request.user_id or "mobile-app",
+            str(user_id),
             _estimate_recipients([affected_area], 5),
         ),
     )
@@ -285,7 +293,7 @@ async def trigger_alert(
         {
             **payload,
             "location": request.current_location.model_dump(),
-            "user_id": request.user_id,
+            "user_id": str(user_id),
         },
     )
     return payload
@@ -328,3 +336,15 @@ def _mobile_user_from_row(row: sqlite3.Row) -> dict[str, Any]:
         "primary_location": row["primary_location"],
         "safety_level": row["safety_level"],
     }
+
+
+def _require_bearer_token(authorization: str | None, settings: Settings) -> dict[str, Any]:
+    if not authorization:
+        raise HTTPException(status_code=401, detail="Missing Authorization header")
+    scheme, _, token = authorization.partition(" ")
+    if scheme.lower() != "bearer" or not token:
+        raise HTTPException(status_code=401, detail="Expected Bearer token")
+    payload = _decode_token(token, settings.jwt_secret)
+    if payload.get("role") != "mobile":
+        raise HTTPException(status_code=403, detail="Mobile token required")
+    return payload

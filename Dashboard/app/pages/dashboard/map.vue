@@ -102,15 +102,14 @@
                 <div class="h-[500px] lg:h-[600px] map-container">
                   <LMap v-if="activeMapTab === 'heatmap'" :zoom="13" :center="[45.4353, 28.0397]" :use-global-leaflet="false" :options="{ zoomControl: true, attributionControl: false }">
                     <LTileLayer url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png" layer-type="base" name="CartoDB Dark" />
-                    <LPolygon 
-                      v-for="hz in floodHeatmap" 
-                      :key="hz.id" 
-                      :lat-lngs="hz.polygon"
-                      :color="heatmapIntensityColor(hz.intensity)"
-                      :fill-color="heatmapIntensityColor(hz.intensity)"
-                      :fill-opacity="0.5"
-                      :weight="2"
-                    >
+                    <template v-for="hz in floodHeatmap" :key="hz.id">
+                      <LPolygon 
+                        :lat-lngs="hz.polygon"
+                        :color="heatmapIntensityColor(hz.intensity)"
+                        :fill-color="heatmapIntensityColor(hz.intensity)"
+                        :fill-opacity="0.3"
+                        :weight="1"
+                      >
                       <LPopup>
                         <div class="p-2 min-w-[180px]">
                           <h3 class="font-bold text-sm text-gray-900 mb-1">{{ hz.zone }}</h3>
@@ -118,7 +117,8 @@
                           <p class="text-xs text-gray-500 uppercase font-semibold" :style="{ color: heatmapIntensityColor(hz.intensity) }">{{ hz.riskLevel }} risk</p>
                         </div>
                       </LPopup>
-                    </LPolygon>
+                      </LPolygon>
+                    </template>
                   </LMap>
                 </div>
                 <template #fallback>
@@ -160,19 +160,19 @@
               <h3 class="text-sm font-semibold text-(--label-text) mb-3">Legend</h3>
               <div class="space-y-2">
                 <div class="flex items-center gap-2">
-                  <span class="h-3 w-3 rounded-full bg-red-500" />
+                  <span class="h-3 w-3 bg-[#EF4444] border border-black/10" />
                   <span class="text-xs text-(--label-text)">Critical (75-100%)</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="h-3 w-3 rounded-full bg-orange-500" />
+                  <span class="h-3 w-3 bg-[#F97316] border border-black/10" />
                   <span class="text-xs text-(--label-text)">High (50-75%)</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="h-3 w-3 rounded-full bg-amber-500" />
+                  <span class="h-3 w-3 bg-[#FFFF00] border border-black/10" />
                   <span class="text-xs text-(--label-text)">Moderate (25-50%)</span>
                 </div>
                 <div class="flex items-center gap-2">
-                  <span class="h-3 w-3 rounded-full bg-green-500" />
+                  <span class="h-3 w-3 bg-[#22C55E] border border-black/10" />
                   <span class="text-xs text-(--label-text)">Low (0-25%)</span>
                 </div>
               </div>

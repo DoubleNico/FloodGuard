@@ -152,12 +152,12 @@ export const useSatelliteData = () => {
   };
   const heatmapIntensityColor = (i: number) =>
     i >= 0.75
-      ? "#EF4444"
+      ? "#EF4444" // Red
       : i >= 0.5
-        ? "#F97316"
+        ? "#F97316" // Orange
         : i >= 0.25
-          ? "#F59E0B"
-          : "#22C55E";
+          ? "#FFFF00" // Yellow
+          : "#22C55E"; // Green
 
   if (import.meta.client && waterLevels.value.length === 0) {
     refreshSatelliteData();

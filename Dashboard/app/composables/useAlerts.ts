@@ -225,6 +225,10 @@ export const useAlerts = () => {
     return Math.max(...active.map((a) => a.severity));
   });
 
+  const mobileEmergencies = computed(() =>
+    activeAlerts.value.filter((a) => a.title.startsWith("SOS: "))
+  );
+
   const createAlert = async (
     data: {
       type: AlertType;
@@ -304,6 +308,7 @@ export const useAlerts = () => {
     accidentalAlerts,
     totalRecipients,
     highestSeverity,
+    mobileEmergencies,
     globalAlarmActive,
     lastBroadcastTime,
     galatiZones: GALATI_ZONES,

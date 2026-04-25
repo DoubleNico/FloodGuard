@@ -23,6 +23,11 @@ class BackendService {
   Stream<Map<String, dynamic>> get eventStream => _eventController.stream;
   String? get userId => _userId;
 
+  // Dedicated stream and storage for emergency alerts
+  final _alertController = StreamController<Map<String, dynamic>>.broadcast();
+  Stream<Map<String, dynamic>> get alertStream => _alertController.stream;
+  final List<Map<String, dynamic>> activeAlerts = [];
+
   Future<void> initialize() async {
     await _authenticateDummyUser();
     _connectWebSocket();
@@ -31,7 +36,7 @@ class BackendService {
   Future<void> _authenticateDummyUser() async {
     final loginPayload = {
       "email": "andrei.ionescu@hydralis.com",
-      "password": "secure_password"
+      "password": "secure_password",
     };
 
     try {
@@ -55,7 +60,7 @@ class BackendService {
           "password": "secure_password",
           "birthday": "1985-06-15",
           "primary_location": "Galati Port Facility",
-          "safety_level": 3
+          "safety_level": 3,
         };
 
         final signupRes = await http.post(
@@ -88,6 +93,13 @@ class BackendService {
           try {
             final data = jsonDecode(message);
             _eventController.add(data);
+
+            // Intercept emergency status events and route them to alerts
+            final eventType = data['event'] ?? data['type'];
+            if (eventType == 'user:status_emergency') {
+              activeAlerts.add(data);
+              _alertController.add(data);
+            }
           } catch (e) {
             print("WebSocket parse error: $e");
           }
@@ -116,7 +128,9 @@ class BackendService {
   Future<Map<String, dynamic>?> fetchMapData(LatLng location) async {
     try {
       final res = await http.get(
-        Uri.parse('$baseUrl/map/data?lat=${location.latitude}&lng=${location.longitude}&radius=10km'),
+        Uri.parse(
+          '$baseUrl/map/data?lat=${location.latitude}&lng=${location.longitude}&radius=10km',
+        ),
         headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
       );
 
@@ -134,22 +148,22 @@ class BackendService {
 
   Future<void> postUserStatus(LatLng location, String status) async {
     if (_userId == null) return;
-    
+
     try {
       final payload = {
         "user_id": _userId,
         "status": status,
         "current_location": {
           "lat": location.latitude,
-          "lng": location.longitude
-        }
+          "lng": location.longitude,
+        },
       };
 
       await http.post(
         Uri.parse('$baseUrl/user/status'),
         headers: {
           "Content-Type": "application/json",
-          if (_token != null) "Authorization": "Bearer $_token"
+          if (_token != null) "Authorization": "Bearer $_token",
         },
         body: jsonEncode(payload),
       );
@@ -173,16 +187,16 @@ class BackendService {
         "mobility_info": mobilityInfo,
         "current_location": {
           "lat": location.latitude,
-          "lng": location.longitude
+          "lng": location.longitude,
         },
-        "message": "MAN-DOWN DETECTED: Zero movement for 60 seconds."
+        "message": "MAN-DOWN DETECTED: Zero movement for 60 seconds.",
       };
 
       final response = await http.post(
         Uri.parse('$baseUrl/alerts/trigger'),
         headers: {
           "Content-Type": "application/json",
-          "Authorization": "Bearer $_token"
+          "Authorization": "Bearer $_token",
         },
         body: jsonEncode(payload),
       );
@@ -196,6 +210,11 @@ class BackendService {
     return null;
   }
 
+  // Helper to remove an alert once it's been handled
+  void removeAlert(Map<String, dynamic> alert) {
+    activeAlerts.remove(alert);
+  }
+
   Future<void> cancelAlert(String alertId) async {
     try {
       // Mark the dispatch alert as accidental instead of closing it silently.
@@ -205,7 +224,9 @@ class BackendService {
           "Content-Type": "application/json",
           if (_token != null) "Authorization": "Bearer $_token",
         },
-        body: jsonEncode({"message": "Accidental alert: worker confirmed safe from the mobile app."}),
+        body: jsonEncode({
+          "message": "Accidental Detection — Worker confirmed safe.",
+        }),
       );
       await http.patch(
         Uri.parse('$apiV1Url/alerts/$alertId/status'),

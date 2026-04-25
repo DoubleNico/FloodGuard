@@ -1,5 +1,7 @@
 export const useStream = () => {
   const config = useRuntimeConfig();
+  const { refreshAlerts } = useAlerts();
+  const { refreshLocations } = useSafeLocations();
   const ws = useState<WebSocket | null>("ws-stream", () => null);
   const connected = useState("ws-connected", () => false);
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -30,21 +32,17 @@ export const useStream = () => {
       try {
         const data = JSON.parse(event.data);
         if (!data.event) return;
+        console.log("Received event:", data.event);
 
-        if (data.event === "alert:mobile_emergency") {
-          const { upsertAlertFromPayload } = useAlerts();
-          upsertAlertFromPayload(data.payload);
-          return;
-        }
-
-        if (data.event === "alert:new" || data.event === "alert:updated") {
-          const { refreshAlerts, upsertAlertFromPayload } = useAlerts();
-          upsertAlertFromPayload(data.payload);
+        if (
+          data.event === "alert:new" ||
+          data.event === "alert:updated" ||
+          data.event === "alert:mobile_emergency"
+        ) {
           refreshAlerts();
         }
 
         if (data.event === "location:occupancy_update") {
-          const { refreshLocations } = useSafeLocations();
           refreshLocations();
         }
       } catch {

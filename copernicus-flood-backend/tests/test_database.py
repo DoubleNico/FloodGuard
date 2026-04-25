@@ -97,6 +97,33 @@ def test_schema_backfills_mobile_alert_columns(tmp_path: Path) -> None:
     assert {"user_name", "mobility_info"} <= trigger_columns
 
 
+def test_initialize_backfills_existing_mobile_alert_metadata(tmp_path: Path) -> None:
+    settings = Settings(database_path=str(tmp_path / "legacy-alert.db"))
+    initialize_database(settings)
+    with connect(settings) as conn:
+        now = "2026-04-25T00:00:00Z"
+        conn.execute(
+            """
+            INSERT INTO alerts (
+                id, type, severity, status, title, message, affected_areas, created_at,
+                updated_at, published_at, closed_at, created_by, broadcast_sent, recipient_count
+            ) VALUES (?, 'evacuation', 5, 'published', 'Mobile Emergency Alert', 'MAN-DOWN', '[]', ?, ?, ?, NULL, ?, 1, 0)
+            """,
+            ("ALR-999", now, now, now, "mob_003"),
+        )
+        conn.commit()
+
+    initialize_database(settings)
+
+    with connect(settings) as conn:
+        row = conn.execute("SELECT * FROM alerts WHERE id = 'ALR-999'").fetchone()
+        alert = _alert_from_row(row)
+
+    assert alert["user_name"] == "Mihai Stan"
+    assert alert["userStatus"] == "Man Down"
+    assert alert["mobilityInfo"]["level"] == "High Risk"
+
+
 def test_alert_can_be_marked_accidental(tmp_path: Path) -> None:
     settings = Settings(database_path=str(tmp_path / "hydralis-test.db"))
     initialize_database(settings)

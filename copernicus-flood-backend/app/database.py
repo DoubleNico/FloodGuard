@@ -739,6 +739,49 @@ def seed_database(conn: sqlite3.Connection) -> None:
             ("EMG-002", "mob_005", 45.4572, 28.0024, "Blocked road and rising water near Micro 17.", now, 0),
         ],
     )
+    _backfill_mobile_alert_metadata(conn)
+
+
+def _backfill_mobile_alert_metadata(conn: sqlite3.Connection) -> None:
+    rows = conn.execute(
+        """
+        SELECT a.id, a.user_name, a.mobility_info, u.full_name, u.safety_level
+        FROM alerts a
+        JOIN mobile_users u ON u.id = a.created_by
+        WHERE a.user_name IS NULL OR a.mobility_info IS NULL
+        """
+    ).fetchall()
+    for row in rows:
+        safety_level = int(row["safety_level"] or 0)
+        mobility_info = row["mobility_info"]
+        if mobility_info is None:
+            mobility_info = json.dumps(
+                {
+                    "has_issues": safety_level >= 2,
+                    "safety_level": safety_level,
+                    "level": _safety_level_label(safety_level),
+                    "user_status": "Man Down",
+                }
+            )
+        conn.execute(
+            """
+            UPDATE alerts
+            SET user_name = COALESCE(user_name, ?),
+                mobility_info = COALESCE(mobility_info, ?)
+            WHERE id = ?
+            """,
+            (row["full_name"], mobility_info, row["id"]),
+        )
+
+
+def _safety_level_label(safety_level: int) -> str:
+    labels = {
+        0: "Safe",
+        1: "Moderate",
+        2: "At Risk",
+        3: "High Risk",
+    }
+    return labels.get(safety_level, "Unknown")
 
 def row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     return dict(row)

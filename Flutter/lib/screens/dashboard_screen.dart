@@ -97,14 +97,16 @@ class _DashboardScreenState extends State<DashboardScreen> {
         }
       }
 
-      if (event == 'alert:new' || event == 'alert:updated') {
+      // Only trigger on mobile when the dispatcher explicitly presses Broadcast.
+      // alert:new and alert:updated for draft/review/approved do NOT affect the mobile app.
+      if (event == 'alert:updated') {
         final payload = data['payload'];
-        print("Alert payload type: ${payload?['type']}");
-        if (payload != null && payload['type'] == 'evacuation') {
+        final broadcastSent = payload?['broadcastSent'] == true || payload?['broadcast_sent'] == true;
+        print("Alert payload type: ${payload?['type']} broadcastSent: $broadcastSent");
+        if (payload != null && payload['type'] == 'evacuation' && broadcastSent) {
           _activeAlertMessage = payload['message'];
           if (_demoState == DemoState.safe || _demoState == DemoState.smsReceived) {
-             print("TRIGGERING CRISIS from WebSocket!");
-             // Dispatcher triggered an evacuation alert!
+             print("TRIGGERING CRISIS from WebSocket broadcast!");
              setState(() {
                _demoState = DemoState.crisis;
              });

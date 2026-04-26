@@ -7,6 +7,7 @@ import httpx
 
 from app.config import Settings
 from app.exceptions import ExternalServiceError, MissingCredentialsError, NoSceneFoundError
+from app.external_response_logging import log_external_response
 from app.geo import bbox_from_area
 from app.models import LatestSceneRequest, SatelliteScene
 from app.time_utils import iso_z, parse_datetime, utcnow
@@ -136,6 +137,13 @@ class SentinelHubClient:
             raise ExternalServiceError("Copernicus request timed out") from exc
         except httpx.HTTPError as exc:
             raise ExternalServiceError("Copernicus request failed", details={"error": str(exc)}) from exc
+
+        log_external_response(
+            source="Sentinel Hub",
+            method=method,
+            url=url,
+            response=response,
+        )
 
         if response.status_code >= 400:
             details: dict[str, Any] = {"status_code": response.status_code}

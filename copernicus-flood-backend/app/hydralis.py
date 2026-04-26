@@ -541,21 +541,26 @@ def _alert_from_row(row: sqlite3.Row) -> dict[str, Any]:
     user_status = mobility_info.get("user_status") if isinstance(mobility_info, dict) else None
     user_name = row["user_name"] if "user_name" in row.keys() and row["user_name"] else None
     user_name = user_name or (row["mobile_user_name"] if "mobile_user_name" in row.keys() else None)
+    created_by = str(row["created_by"])
+    title = row["title"]
+    is_mobile_emergency = title.startswith("SOS:") or created_by.startswith("mob-")
     return {
         "id": row["id"],
         "type": row["type"],
         "severity": row["severity"],
         "status": row["status"],
-        "title": row["title"],
+        "title": title,
         "message": row["message"],
         "affectedAreas": json.loads(row["affected_areas"]),
         "createdAt": row["created_at"],
         "updatedAt": row["updated_at"],
         "publishedAt": row["published_at"],
         "closedAt": row["closed_at"],
-        "createdBy": row["created_by"],
+        "createdBy": created_by,
         "broadcastSent": bool(row["broadcast_sent"]),
         "recipientCount": row["recipient_count"],
+        "isMobileEmergency": is_mobile_emergency,
+        "is_mobile_emergency": is_mobile_emergency,
         "user_name": user_name,
         "userName": user_name,
         "user_status": user_status,

@@ -30,7 +30,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
   DemoState _demoState = DemoState.safe;
   bool _showSmsBanner = false;
   final FlutterTts _flutterTts = FlutterTts();
-  String? _lastTriggeredBroadcastAlertId;
+  String? _lastTriggeredBroadcastKey;
 
   // Backend data
   String _copernicusRisk = 'LOADING...';
@@ -120,19 +120,40 @@ class _DashboardScreenState extends State<DashboardScreen> {
         final status = (payload?['status'] ?? '').toString().toLowerCase();
         final isPublished = status == 'published';
         final alertId = payload?['id']?.toString();
+        final createdBy =
+            (payload?['createdBy'] ?? payload?['created_by'] ?? '').toString();
+        final title = (payload?['title'] ?? '').toString();
+        final isMobileEmergencyRaw =
+            payload?['isMobileEmergency'] ?? payload?['is_mobile_emergency'];
+        final isMobileEmergency =
+            isMobileEmergencyRaw == true ||
+            title.startsWith('SOS:') ||
+            createdBy.startsWith('mob-');
+        final broadcastMoment =
+            (payload?['publishedAt'] ??
+                    payload?['published_at'] ??
+                    payload?['updatedAt'] ??
+                    payload?['updated_at'] ??
+                    '')
+                .toString();
+        final broadcastKey = alertId != null
+            ? '$alertId:$broadcastMoment'
+            : null;
         print(
-          "Alert payload type: ${payload?['type']} status: $status broadcastSent: $broadcastSent",
+          "Alert payload type: ${payload?['type']} status: $status sourceMobile: $isMobileEmergency broadcastSent: $broadcastSent",
         );
         if (payload != null &&
             payload['type'] == 'evacuation' &&
             broadcastSent &&
             isPublished &&
+            !isMobileEmergency &&
             alertId != null &&
-            alertId != _lastTriggeredBroadcastAlertId) {
+            broadcastKey != null &&
+            broadcastKey != _lastTriggeredBroadcastKey) {
           _activeAlertMessage = payload['message'];
           if (_demoState == DemoState.safe ||
               _demoState == DemoState.smsReceived) {
-            _lastTriggeredBroadcastAlertId = alertId;
+            _lastTriggeredBroadcastKey = broadcastKey;
             print("TRIGGERING CRISIS from WebSocket broadcast!");
             setState(() {
               _demoState = DemoState.crisis;

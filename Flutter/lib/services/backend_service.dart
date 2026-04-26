@@ -9,9 +9,9 @@ class BackendService {
   factory BackendService() => _instance;
   BackendService._internal();
 
-  final String baseUrl = 'http://10.0.2.2:8000/api';
-  final String apiV1Url = 'http://10.0.2.2:8000/api/v1';
-  final String wsUrl = 'ws://10.0.2.2:8000/api/v1/stream';
+  final String baseUrl = 'http://127.0.0.1:8000/api';
+  final String apiV1Url = 'http://127.0.0.1:8000/api/v1';
+  final String wsUrl = 'ws://127.0.0.1:8000/api/v1/stream';
 
   String? _token;
   String? _userId;

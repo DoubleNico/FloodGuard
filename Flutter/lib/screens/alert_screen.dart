@@ -18,7 +18,7 @@ class _AlertScreenState extends State<AlertScreen> {
   }
 
   Future<void> _playSiren() async {
-    // Play a siren sound. In a real app we'd bundle an asset. 
+    // Play a siren sound. In a real app we'd bundle an asset.
     // Here we can use a generated beep or an asset if we have one.
     // For the hackathon, we'll try to play a high pitched beep or just mock the sound player.
     // We'll set a loop mode.
@@ -26,7 +26,7 @@ class _AlertScreenState extends State<AlertScreen> {
     // As a mock for the demo, we will just use a beep asset or skip if not available,
     // assuming there's an asset or we will just let it be silent if missing.
     // Let's assume there is an asset "siren.mp3" eventually, for now we will just mock the call.
-    // _audioPlayer.play(AssetSource('siren.mp3')); 
+    // _audioPlayer.play(AssetSource('siren.mp3'));
   }
 
   @override
@@ -43,9 +43,14 @@ class _AlertScreenState extends State<AlertScreen> {
         child: LayoutBuilder(
           builder: (context, constraints) {
             return SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 24.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 24.0,
+                vertical: 24.0,
+              ),
               child: ConstrainedBox(
-                constraints: BoxConstraints(minHeight: constraints.maxHeight - 48),
+                constraints: BoxConstraints(
+                  minHeight: constraints.maxHeight - 48,
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.center,
                   children: [
@@ -71,7 +76,14 @@ class _AlertScreenState extends State<AlertScreen> {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: const [
-                        Text('!', style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text(
+                          '!',
+                          style: TextStyle(
+                            fontSize: 32,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                         SizedBox(width: 12),
                         Text(
                           'FLOOD\nWARNING',
@@ -84,7 +96,14 @@ class _AlertScreenState extends State<AlertScreen> {
                           ),
                         ),
                         SizedBox(width: 12),
-                        Text('!', style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold)),
+                        Text(
+                          '!',
+                          style: TextStyle(
+                            fontSize: 32,
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
                       ],
                     ),
                     const SizedBox(height: 28),
@@ -110,7 +129,9 @@ class _AlertScreenState extends State<AlertScreen> {
                                 TextSpan(text: 'There is a '),
                                 TextSpan(
                                   text: 'HIGH RISK',
-                                  style: TextStyle(decoration: TextDecoration.underline),
+                                  style: TextStyle(
+                                    decoration: TextDecoration.underline,
+                                  ),
                                 ),
                                 TextSpan(text: ' of flooding\nin your area.'),
                               ],
@@ -144,7 +165,8 @@ class _AlertScreenState extends State<AlertScreen> {
                     // Buttons
                     ElevatedButton(
                       onPressed: () {
-                        Navigator.pop(context, true); // Go back and indicate evacuation started
+                        // Go back and indicate evacuation started
+                        Navigator.pop(context, true);
                       },
                       style: ElevatedButton.styleFrom(
                         backgroundColor: Colors.white,
@@ -156,7 +178,10 @@ class _AlertScreenState extends State<AlertScreen> {
                       ),
                       child: const Text(
                         'START EVACUATION',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
                     const SizedBox(height: 16),
@@ -174,10 +199,13 @@ class _AlertScreenState extends State<AlertScreen> {
                       ),
                       child: const Text(
                         'Call Emergency Services',
-                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        style: TextStyle(
+                          fontSize: 18,
+                          fontWeight: FontWeight.bold,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                 ),
               ),
             );

@@ -103,7 +103,16 @@ class ConnectionManager:
 
     async def broadcast(self, event: str, payload: dict[str, Any]) -> None:
         stale: list[WebSocket] = []
-        message = {"event": event, "payload": payload}
+        message_payload = payload
+        if event == "alert:updated":
+            status = str(payload.get("status", "")).lower()
+            if status in {"accidental", "closed"}:
+                message_payload = {
+                    **payload,
+                    "broadcastSent": False,
+                    "broadcast_sent": False,
+                }
+        message = {"event": event, "payload": message_payload}
         for websocket in self.active_connections:
             try:
                 await websocket.send_json(message)

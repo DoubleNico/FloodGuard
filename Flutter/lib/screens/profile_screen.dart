@@ -59,63 +59,75 @@ class _ProfileScreenState extends State<ProfileScreen> {
                 child: Icon(Icons.person, size: 50, color: Colors.white),
               ),
             ),
-          const SizedBox(height: 24),
-          const Text(
-            'Personal Information',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          _buildInfoTile('Name', 'Andrei Ionescu'),
-          _buildInfoTile('Email', 'andrei.ionescu@hydralis.com'),
-          const Divider(height: 40),
-          const Text(
-            'Mobility & Accessibility',
-            style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 16),
-          SwitchListTile(
-            title: const Text('Mobility Issues'),
-            subtitle: const Text('Do you have any conditions affecting movement?'),
-            value: _hasMobilityIssues,
-            onChanged: (val) {
-              setState(() => _hasMobilityIssues = val);
-            },
-            activeColor: const Color(0xFF2F80ED),
-          ),
-          if (_hasMobilityIssues) ...[
+            const SizedBox(height: 24),
+            const Text(
+              'Personal Information',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
             const SizedBox(height: 16),
-            const Text('Gravity of Mobility Issues', style: TextStyle(fontWeight: FontWeight.bold)),
-            const SizedBox(height: 8),
-            DropdownButtonFormField<String>(
-              value: _gravity,
-              decoration: InputDecoration(
-                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
-                contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            _buildInfoTile('Name', 'Andrei Ionescu'),
+            _buildInfoTile('Email', 'andrei.ionescu@hydralis.com'),
+            const Divider(height: 40),
+            const Text(
+              'Mobility & Accessibility',
+              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 16),
+            SwitchListTile(
+              title: const Text('Mobility Issues'),
+              subtitle: const Text(
+                'Do you have any conditions affecting movement?',
               ),
-              items: _gravityOptions.map((opt) {
-                return DropdownMenuItem(value: opt, child: Text(opt));
-              }).toList(),
+              value: _hasMobilityIssues,
               onChanged: (val) {
-                if (val != null) setState(() => _gravity = val);
+                setState(() => _hasMobilityIssues = val);
               },
+              activeThumbColor: const Color(0xFF2F80ED),
+            ),
+            if (_hasMobilityIssues) ...[
+              const SizedBox(height: 16),
+              const Text(
+                'Gravity of Mobility Issues',
+                style: TextStyle(fontWeight: FontWeight.bold),
+              ),
+              const SizedBox(height: 8),
+              DropdownButtonFormField<String>(
+                initialValue: _gravity,
+                decoration: InputDecoration(
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                ),
+                items: _gravityOptions.map((opt) {
+                  return DropdownMenuItem(value: opt, child: Text(opt));
+                }).toList(),
+                onChanged: (val) {
+                  if (val != null) setState(() => _gravity = val);
+                },
+              ),
+            ],
+            const SizedBox(height: 40),
+            ElevatedButton(
+              onPressed: _saveSettings,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFF2F80ED),
+                foregroundColor: Colors.white,
+                minimumSize: const Size(double.infinity, 50),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              child: const Text(
+                'Save Profile',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
             ),
           ],
-          const SizedBox(height: 40),
-          ElevatedButton(
-            onPressed: _saveSettings,
-            style: ElevatedButton.styleFrom(
-              backgroundColor: const Color(0xFF2F80ED),
-              foregroundColor: Colors.white,
-              minimumSize: const Size(double.infinity, 50),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
-            ),
-            child: const Text('Save Profile', style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold)),
-          ),
-        ],
+        ),
       ),
-    ),
-  );
-}
+    );
+  }
 
   Widget _buildInfoTile(String label, String value) {
     return Padding(
@@ -125,7 +137,10 @@ class _ProfileScreenState extends State<ProfileScreen> {
         children: [
           Text(label, style: const TextStyle(color: Colors.grey, fontSize: 14)),
           const SizedBox(height: 4),
-          Text(value, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500)),
+          Text(
+            value,
+            style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
+          ),
         ],
       ),
     );

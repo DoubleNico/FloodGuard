@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from datetime import datetime, timedelta, timezone
 from statistics import fmean
 from typing import Any, Protocol
@@ -58,10 +59,31 @@ async def detect_flood(
         time_to=current_to,
         aggregation_interval_days=1,
     )
-    current_stats = extract_water_stats(
-        await client.statistics(current_payload),
-        resolution_meters=request.resolution_meters,
-    )
+
+    # Build baseline payload ahead of time so we can fire both requests concurrently.
+    baseline_payload: dict[str, Any] | None = None
+    if request.baseline.enabled:
+        baseline_to = latest_scene.datetime - timedelta(days=request.baseline.gap_days)
+        baseline_from = baseline_to - timedelta(days=request.baseline.days)
+        if baseline_from < baseline_to:
+            baseline_payload = build_statistics_payload(
+                request=request,
+                time_from=baseline_from,
+                time_to=baseline_to,
+                aggregation_interval_days=request.baseline.interval_days,
+            )
+
+    # Fetch current stats and (optional) baseline stats concurrently.
+    if baseline_payload is not None:
+        current_response, baseline_response = await asyncio.gather(
+            client.statistics(current_payload),
+            client.statistics(baseline_payload),
+        )
+    else:
+        current_response = await client.statistics(current_payload)
+        baseline_response = None
+
+    current_stats = extract_water_stats(current_response, resolution_meters=request.resolution_meters)
     if not current_stats:
         raise NoStatisticsError(
             "No valid Sentinel-1 statistics were returned for the latest scene.",
@@ -73,25 +95,14 @@ async def detect_flood(
     baseline_fraction: float | None = None
     baseline_intervals_used = 0
 
-    if request.baseline.enabled:
-        baseline_to = latest_scene.datetime - timedelta(days=request.baseline.gap_days)
-        baseline_from = baseline_to - timedelta(days=request.baseline.days)
-        if baseline_from < baseline_to:
-            baseline_payload = build_statistics_payload(
-                request=request,
-                time_from=baseline_from,
-                time_to=baseline_to,
-                aggregation_interval_days=request.baseline.interval_days,
-            )
-            baseline_stats = extract_water_stats(
-                await client.statistics(baseline_payload),
-                resolution_meters=request.resolution_meters,
-            )
-            usable = [stat for stat in baseline_stats if stat.valid_pixel_count >= request.min_valid_pixels]
-            baseline_intervals_used = len(usable)
-            baseline_fraction = weighted_water_fraction(usable)
-        if baseline_fraction is None:
-            warnings.append("No usable baseline statistics were available; using latest water fraction only.")
+    if baseline_response is not None:
+        baseline_stats = extract_water_stats(baseline_response, resolution_meters=request.resolution_meters)
+        usable = [stat for stat in baseline_stats if stat.valid_pixel_count >= request.min_valid_pixels]
+        baseline_intervals_used = len(usable)
+        baseline_fraction = weighted_water_fraction(usable)
+
+    if request.baseline.enabled and baseline_fraction is None:
+        warnings.append("No usable baseline statistics were available; using latest water fraction only.")
 
     water_fraction_change = (
         current.water_fraction - baseline_fraction if baseline_fraction is not None else None

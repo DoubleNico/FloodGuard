@@ -1,7 +1,9 @@
 from __future__ import annotations
 
+import asyncio
 import json
 import sqlite3
+import time
 from collections.abc import Iterator
 from typing import Any, Literal
 
@@ -29,6 +31,14 @@ from app.sentinel_hub import SentinelHubClient
 router = APIRouter(prefix="/api", tags=["FloodGuard Mobile"])
 
 MobileStatus = Literal["Safe", "Monitor", "Need Help", "Emergency"]
+
+# ---------------------------------------------------------------------------
+# In-memory TTL cache for expensive Copernicus + EFAS satellite lookups.
+# Key: (rounded_lat, rounded_lng, radius_str)
+# Value: (timestamp_seconds, result_dict)
+# ---------------------------------------------------------------------------
+_MAP_DATA_CACHE: dict[tuple[float, float, str], tuple[float, dict[str, Any]]] = {}
+_MAP_DATA_CACHE_TTL_SECONDS: float = 600  # 10 minutes
 
 
 class SignUpRequest(BaseModel):
@@ -139,6 +149,8 @@ async def map_data(
     settings: Settings = Depends(get_settings),
 ) -> dict[str, Any]:
     radius_meters = parse_radius_meters(radius)
+
+    # Always fetch live DB data (fast, local SQLite).
     safe_locations = [
         _location_from_row(row)
         for row in conn.execute("SELECT * FROM safe_locations ORDER BY name").fetchall()
@@ -150,48 +162,62 @@ async def map_data(
             "SELECT * FROM alerts WHERE status IN ('approved', 'published', 'updated') ORDER BY updated_at DESC"
         ).fetchall()
     ]
-    efas_summary: dict[str, Any] | None = None
-    try:
-        efas_summary = await get_location_warnings(
-            latitude=lat,
-            longitude=lng,
-            radius_meters=max(radius_meters, 5_000),
-            settings=settings,
-        )
-    except AppError as exc:
-        efas_summary = {"error": exc.message, "details": exc.details}
 
-    flood_detection: dict[str, Any] | None = None
-    async with SentinelHubClient(settings) as client:
-        try:
-            result = await detect_flood(
-                FloodDetectionRequest(
-                    area=AreaInput(
-                        center=CenterRadius(
-                            latitude=lat,
-                            longitude=lng,
-                            radius_meters=min(max(radius_meters, 500), 100_000),
-                        )
-                    ),
-                    lookback_days=30,
-                    baseline={"enabled": False},
-                ),
-                client,
-            )
-            flood_detection = result.model_dump(mode="json")
-        except MissingCredentialsError as exc:
-            flood_detection = {"error": exc.message}
-        except AppError as exc:
-            flood_detection = {"error": exc.message, "details": exc.details}
+    # Check the TTL cache for the expensive satellite lookups.
+    # Round to 3 decimal places (~111 m grid) so nearby positions share a cache entry.
+    cache_key = (round(lat, 3), round(lng, 3), radius)
+    now = time.monotonic()
+    cached = _MAP_DATA_CACHE.get(cache_key)
+    if cached is not None and (now - cached[0]) < _MAP_DATA_CACHE_TTL_SECONDS:
+        flood_warning = cached[1]
+    else:
+        # Run EFAS and Sentinel Hub concurrently.
+        async def _fetch_efas() -> dict[str, Any] | None:
+            try:
+                return await get_location_warnings(
+                    latitude=lat,
+                    longitude=lng,
+                    radius_meters=max(radius_meters, 5_000),
+                    settings=settings,
+                )
+            except AppError as exc:
+                return {"error": exc.message, "details": exc.details}
+
+        async def _fetch_copernicus() -> dict[str, Any] | None:
+            async with SentinelHubClient(settings) as client:
+                try:
+                    result = await detect_flood(
+                        FloodDetectionRequest(
+                            area=AreaInput(
+                                center=CenterRadius(
+                                    latitude=lat,
+                                    longitude=lng,
+                                    radius_meters=min(max(radius_meters, 500), 100_000),
+                                )
+                            ),
+                            lookback_days=30,
+                            baseline={"enabled": False},
+                        ),
+                        client,
+                    )
+                    return result.model_dump(mode="json")
+                except MissingCredentialsError as exc:
+                    return {"error": exc.message}
+                except AppError as exc:
+                    return {"error": exc.message, "details": exc.details}
+
+        efas_summary, flood_detection = await asyncio.gather(
+            _fetch_efas(),
+            _fetch_copernicus(),
+        )
+        flood_warning = {"copernicus": flood_detection, "efas": efas_summary}
+        _MAP_DATA_CACHE[cache_key] = (now, flood_warning)
 
     return {
         "location": {"lat": lat, "lng": lng, "radius_meters": radius_meters},
         "safe_locations": safe_locations,
         "alerts": active_alerts,
-        "flood_warning": {
-            "copernicus": flood_detection,
-            "efas": efas_summary,
-        },
+        "flood_warning": flood_warning,
     }
 
 

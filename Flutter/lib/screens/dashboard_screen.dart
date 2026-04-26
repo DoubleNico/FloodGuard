@@ -70,11 +70,20 @@ class _DashboardScreenState extends State<DashboardScreen> {
     final data = await BackendService().fetchMapData(_workerPosition);
     if (data != null && mounted) {
       setState(() {
-        if (data['flood_warning']?['copernicus']?['error'] == null) {
-          _copernicusRisk =
-              'LOW RISK'; // Using LOW as placeholder since real Copernicus needs CDSE credentials
+        final copernicus = data['flood_warning']?['copernicus'];
+        if (copernicus != null && copernicus['error'] == null) {
+          final status = copernicus['status'];
+          if (status == 'likely_flooding') {
+            _copernicusRisk = 'HIGH RISK';
+          } else if (status == 'possible_flooding') {
+            _copernicusRisk = 'MEDIUM RISK';
+          } else if (status == 'no_flood_signal') {
+            _copernicusRisk = 'LOW RISK';
+          } else {
+            _copernicusRisk = 'UNKNOWN RISK';
+          }
         } else {
-          _copernicusRisk = 'LOW RISK (Mock)';
+          _copernicusRisk = 'ERROR';
         }
       });
     }

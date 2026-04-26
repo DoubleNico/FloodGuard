@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass
 from html import unescape
 from typing import Any
@@ -121,8 +122,8 @@ async def get_location_warnings(
     settings: Settings,
 ) -> dict[str, Any]:
     bbox = bbox_from_center(latitude, longitude, radius_meters)
-    layer_results = []
-    for layer in EFAS_FORECAST_LAYERS:
+
+    async def fetch_layer(layer: dict[str, Any]) -> dict[str, Any]:
         info = await get_feature_info(
             request=EfasMapRequest(
                 latitude=latitude,
@@ -134,13 +135,16 @@ async def get_location_warnings(
             ),
             settings=settings,
         )
-        layer_results.append(
-            {
-                **layer,
-                "feature_info": info,
-                "has_signal": bool(info.get("items")),
-            }
-        )
+        return {
+            **layer,
+            "feature_info": info,
+            "has_signal": bool(info.get("items")),
+        }
+
+    layer_results = await asyncio.gather(
+        *[fetch_layer(layer) for layer in EFAS_FORECAST_LAYERS],
+        return_exceptions=False,
+    )
     return {
         "location": {"latitude": latitude, "longitude": longitude, "radius_meters": radius_meters},
         "bbox": bbox.as_list(),
@@ -150,7 +154,7 @@ async def get_location_warnings(
             "Without EFAS_WMS_TOKEN this endpoint uses public limited/non-real-time WMS access."
         ),
         "token_configured": bool(settings.efas_wms_token),
-        "layers": layer_results,
+        "layers": list(layer_results),
     }
 
 

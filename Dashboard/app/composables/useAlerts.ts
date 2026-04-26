@@ -171,10 +171,11 @@ export const useAlerts = () => {
     try {
       const data = await get<{ alerts: AlertApiRow[] }>("/api/v1/alerts");
       alerts.value = data.alerts.map(parseAlert);
+      console.log("Fetched alerts:", alerts.value);
       const hasPublished = alerts.value.some((a) => a.status === "published");
       globalAlarmActive.value = hasPublished;
-    } catch {
-      // keep existing data on error
+    } catch (err) {
+      console.error("[useAlerts] refreshAlerts failed:", err);
     } finally {
       loading.value = false;
     }

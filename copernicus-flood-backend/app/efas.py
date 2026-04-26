@@ -13,6 +13,7 @@ import httpx
 
 from app.config import Settings
 from app.exceptions import ExternalServiceError
+from app.external_response_logging import log_external_response
 from app.geo import bbox_from_center
 
 EFAS_FORECAST_LAYERS = [
@@ -300,6 +301,12 @@ async def _wms_get(settings: Settings, params: dict[str, str], *, accept: str) -
         raise ExternalServiceError("EFAS WMS request timed out") from exc
     except httpx.HTTPError as exc:
         raise ExternalServiceError("EFAS WMS request failed", details={"error": str(exc)}) from exc
+    log_external_response(
+        source="EFAS WMS",
+        method="GET",
+        url=str(response.request.url),
+        response=response,
+    )
     if response.status_code >= 400:
         raise ExternalServiceError(
             "EFAS WMS returned an error",

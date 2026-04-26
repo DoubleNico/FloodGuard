@@ -613,7 +613,7 @@ class _DashboardScreenState extends State<DashboardScreen> {
                             ),
                             color: Colors.white.withOpacity(0.7),
                             child: const Text(
-                              'Map Data © FloodGuard',
+                              'Map Data © Hydralis',
                               style: TextStyle(fontSize: 12),
                             ),
                           ),

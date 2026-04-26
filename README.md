@@ -4,7 +4,7 @@ Hydralis is an integrated flood disaster management platform with three primary 
 
 - **Copernicus Flood Backend** (`copernicus-flood-backend/`): FastAPI service for flood screening, Sentinel Hub/Copernicus integration, EFAS overlays, persistent dispatch data, mobile APIs, and WebSocket events.
 - **Dispatch Dashboard** (`Dashboard/`): Nuxt web application used by dispatchers, industrial operators, and administrators to monitor alerts, satellite intelligence, safe locations, industrial telemetry, and subscriptions.
-- **FloodGuard Mobile App** (`Flutter/`): Flutter mobile application for citizen/worker guidance, map awareness, evacuation flow, status updates, and man-down SOS alerts.
+- **Hydralis Mobile App** (`Flutter/`): Flutter mobile application for citizen/worker guidance, map awareness, evacuation flow, status updates, and man-down SOS alerts.
 
 There is also an Arduino circuit asset under `Flood_monitoring_Arduino_circuit/` for the flood monitoring hardware concept.
 

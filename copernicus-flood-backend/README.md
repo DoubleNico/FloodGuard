@@ -19,7 +19,7 @@ Project-level documentation is available in the repository root:
 - Shows country and subdivision boundaries above the heatmap from OpenStreetMap administrative boundary data.
 - Provides EFAS WMS flood forecast and early-warning layer access for a location.
 - Provides Hydralis dispatch/mobile endpoints for authentication, alerts, safe locations, industrial telemetry, subscriptions, and WebSocket updates.
-- Provides FloodGuard mobile endpoints for sign-up, login, map aggregation, user status updates, and emergency triggers.
+- Provides Hydralis mobile endpoints for sign-up, login, map aggregation, user status updates, and emergency triggers.
 - Returns JSON and PNG overlays without downloading full satellite products.
 
 This is an automated screening signal, not an official emergency management flood map.
@@ -94,8 +94,8 @@ curl -X POST http://127.0.0.1:8000/v1/flood/detect \
 - `GET /api/v1/industrial/factories` and `/api/v1/industrial/sensors` - industrial monitoring.
 - `GET /api/v1/subscription/status` - SaaS plan and usage.
 - `WS /api/v1/stream` - frontend update stream.
-- `POST /api/auth/signup` - FloodGuard mobile sign-up.
-- `POST /api/auth/login` - FloodGuard mobile login.
+- `POST /api/auth/signup` - Hydralis mobile sign-up.
+- `POST /api/auth/login` - Hydralis mobile login.
 - `GET /api/map/data` - mobile map payload with nearby safe locations and flood warning summary.
 - `POST /api/user/status` - mobile status update with WebSocket side effects.
 - `POST /api/alerts/trigger` - mobile emergency alert trigger.

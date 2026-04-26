@@ -28,7 +28,7 @@ from app.hydralis import (
 from app.models import AreaInput, CenterRadius, FloodDetectionRequest
 from app.sentinel_hub import SentinelHubClient
 
-router = APIRouter(prefix="/api", tags=["FloodGuard Mobile"])
+router = APIRouter(prefix="/api", tags=["Hydralis Mobile"])
 
 MobileStatus = Literal["Safe", "Monitor", "Need Help", "Emergency"]
 

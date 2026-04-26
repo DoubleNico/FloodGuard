@@ -76,7 +76,7 @@ Important dashboard areas:
 | `app/composables/useStream.ts` | WebSocket connection and event routing |
 | `app/composables/useApi.ts` | Runtime API client |
 
-### FloodGuard Mobile App
+### Hydralis Mobile App
 
 Location: `Flutter/`
 
@@ -131,7 +131,7 @@ Major tables:
 | --- | --- |
 | `users` | Dashboard users and roles |
 | `alerts` | Alert lifecycle, mobile SOS alerts, broadcast metadata |
-| `mobile_users` | FloodGuard mobile accounts |
+| `mobile_users` | Hydralis mobile accounts |
 | `user_status_updates` | Mobile status events |
 | `emergency_triggers` | Mobile emergency trigger history |
 | `safe_locations` | Shelters, assembly points, medical, supplies |

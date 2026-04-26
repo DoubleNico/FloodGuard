@@ -1,4 +1,4 @@
-# FloodGuard Mobile App
+# Hydralis Mobile App
 
 Flutter mobile app for flood readiness, evacuation guidance, user status updates, and man-down SOS alerts.
 

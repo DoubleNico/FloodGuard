@@ -3,6 +3,13 @@
 Python HTTP API for flood screening in a GPS area using recent Copernicus Sentinel-1 GRD SAR data through the Copernicus Data Space Ecosystem Sentinel Hub APIs.
 It also exposes the Hydralis dispatch/mobile API under `/api/v1` with persistent SQLite storage.
 
+Project-level documentation is available in the repository root:
+
+- [Architecture](../docs/architecture.md)
+- [Development Setup](../docs/development.md)
+- [API Reference](../docs/api-reference.md)
+- [Operations and Troubleshooting](../docs/operations.md)
+
 ## What it does
 
 - Searches the Sentinel Hub Catalog API for the newest `sentinel-1-grd` scene intersecting a bbox, point radius, or GeoJSON polygon.
@@ -92,6 +99,7 @@ curl -X POST http://127.0.0.1:8000/v1/flood/detect \
 - `GET /api/map/data` - mobile map payload with nearby safe locations and flood warning summary.
 - `POST /api/user/status` - mobile status update with WebSocket side effects.
 - `POST /api/alerts/trigger` - mobile emergency alert trigger.
+- `POST /api/alerts/accidental` - mark the authenticated mobile user's latest active SOS as accidental.
 
 Example heatmap overlay:
 

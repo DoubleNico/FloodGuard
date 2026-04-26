@@ -5,11 +5,11 @@
     >
       <template #left>
         <a href="/" class="flex items-center gap-2.5 cursor-pointer">
-          <div
-            class="h-8 w-8 rounded-xl brand-gradient flex items-center justify-center shadow-lg shadow-sky-500/25"
-          >
-            <Icon name="mdi:water-alert" class="h-4.5 w-4.5 text-white" />
-          </div>
+          <img
+            src="/icon.png"
+            alt="Hydralis Logo"
+            class="h-8 w-8 rounded-xl shadow-lg object-cover"
+          />
           <span class="font-bold text-lg tracking-tight text-(--label-text)">
             Hydralis
           </span>
@@ -19,12 +19,22 @@
       <div class="hidden md:block">
         <NavigationMenuList>
           <NavigationMenuItem v-for="link in navLinks" :key="link.id">
-            <NavigationMenuLink
-              :href="`#${link.id}`"
-              class="text-[13px] font-semibold px-3 py-2 text-(--label-text) hover:text-sky-500 transition-colors"
-            >
-              {{ link.label }}
-            </NavigationMenuLink>
+            <template v-if="link.href">
+              <NavigationMenuLink
+                :href="link.href"
+                class="text-[13px] font-semibold px-3 py-2 text-(--label-text) hover:text-sky-500 transition-colors"
+              >
+                {{ link.label }}
+              </NavigationMenuLink>
+            </template>
+            <template v-else>
+              <NavigationMenuLink
+                :href="`#${link.id}`"
+                class="text-[13px] font-semibold px-3 py-2 text-(--label-text) hover:text-sky-500 transition-colors"
+              >
+                {{ link.label }}
+              </NavigationMenuLink>
+            </template>
           </NavigationMenuItem>
         </NavigationMenuList>
       </div>
@@ -449,13 +459,13 @@
       <div class="max-w-5xl mx-auto">
         <div class="text-center mb-12 sm:mb-14 reveal-up">
           <h2 class="hero-title text-3xl sm:text-4xl font-bold tracking-tight">
-            Plans & Pricing
+            Plans & Collaboration
           </h2>
           <p
             class="text-base sm:text-lg text-(--hint-text) max-w-2xl mx-auto mt-4"
           >
-            Flexible for municipalities, emergency operations centers, and
-            infrastructure operators.
+            No fixed pricing yet. We shape scope and terms together based on
+            deployment size, integration depth, and response needs.
           </p>
         </div>
 
@@ -519,11 +529,13 @@
                     {{ plan.name }}
                   </h3>
 
-                  <div class="flex items-baseline gap-1 mb-6">
-                    <span class="text-4xl font-extrabold text-(--label-text)">
-                      EUR {{ plan.price }}
+                  <div class="mb-6">
+                    <span class="text-2xl font-extrabold text-(--label-text)">
+                      {{ planDiscussionLabel(plan.tier) }}
                     </span>
-                    <span class="text-sm text-(--hint-text)">/month</span>
+                    <p class="text-sm text-(--hint-text) mt-2">
+                      {{ planDiscussionCopy(plan.tier) }}
+                    </p>
                   </div>
 
                   <ul class="space-y-2.5 mb-6 flex-1">
@@ -540,7 +552,7 @@
                     </li>
                   </ul>
 
-                  <CustomLink to="/auth" class="mt-auto block">
+                  <CustomLink to="/contact" class="mt-auto block">
                     <Button
                       :variant="
                         plan.tier === 'operations' ? 'solid' : 'outline'
@@ -549,7 +561,7 @@
                       block
                       class="rounded-full"
                     >
-                      Get Started
+                      Discuss Plan
                     </Button>
                   </CustomLink>
                 </div>
@@ -567,11 +579,11 @@
         class="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-5"
       >
         <div class="flex items-center gap-2.5">
-          <div
-            class="h-8 w-8 rounded-xl brand-gradient flex items-center justify-center"
-          >
-            <Icon name="mdi:water-alert" class="h-4.5 w-4.5 text-white" />
-          </div>
+          <img
+            src="/icon.png"
+            alt="Hydralis Logo"
+            class="h-8 w-8 rounded-xl object-cover"
+          />
           <span
             class="font-bold text-lg tracking-tight text-(--label-text) hero-title"
           >
@@ -860,6 +872,8 @@ const navLinks = [
   { id: "features", label: "Features" },
   { id: "satellite", label: "Space Stack" },
   { id: "pricing", label: "Pricing" },
+  { id: "about", label: "About", href: "/about" },
+  { id: "contact", label: "Contact", href: "/contact" },
 ];
 
 const quickStats = [
@@ -978,6 +992,22 @@ const changeMode = () => {
   const modes = ["light", "dark"];
   const current = modes.indexOf(colorMode.preference);
   colorMode.preference = modes[(current + 1) % modes.length]!;
+};
+
+const planDiscussionLabel = (tier: string) => {
+  if (tier === "starter") return "Pilot discussion";
+  if (tier === "operations") return "Operational proposal";
+  return "Enterprise engagement";
+};
+
+const planDiscussionCopy = (tier: string) => {
+  if (tier === "starter") {
+    return "Best for early deployments and first flood-response validation.";
+  }
+  if (tier === "operations") {
+    return "Most teams choose this path for live city operations and integrations.";
+  }
+  return "For multi-site critical infrastructure and advanced governance needs.";
 };
 
 const scrollToSection = (sectionId: string) => {

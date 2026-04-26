@@ -1,11 +1,15 @@
 <template>
-  <div class="min-h-screen w-full flex items-center justify-center bg-(--surface-secondary) p-4">
+  <div
+    class="min-h-screen w-full flex items-center justify-center bg-(--surface-secondary) p-4"
+  >
     <Card class="w-full max-w-[420px]">
       <CardHeader class="text-center pb-8">
         <div class="flex justify-center mb-5">
-          <div class="h-14 w-14 rounded-2xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center text-white shadow-xl shadow-blue-500/20">
-            <Icon name="mdi:water-alert" class="h-8 w-8" />
-          </div>
+          <img
+            src="/icon.png"
+            alt="Hydralis Logo"
+            class="h-14 w-14 rounded-xl object-cover"
+          />
         </div>
         <CardTitle class="text-2xl">Hydralis Access</CardTitle>
         <CardDescription class="mt-2 text-base">
@@ -57,7 +61,9 @@
         </Form>
       </CardContent>
 
-      <CardFooter class="flex justify-center border-t border-(--border-color) bg-(--surface-secondary)/30 py-6">
+      <CardFooter
+        class="flex justify-center border-t border-(--border-color) bg-(--surface-secondary)/30 py-6"
+      >
         <p class="text-sm text-(--label-text)">
           Hydralis — Flood Early Warning Platform
         </p>
@@ -141,11 +147,13 @@ const handleLogin = async () => {
     userCookie.value = response.user.username;
     setRole(response.user.role);
 
-    const target = redirectPath.value === "/" ? "/dashboard" : redirectPath.value;
+    const target =
+      redirectPath.value === "/" ? "/dashboard" : redirectPath.value;
     await navigateTo(target);
   } catch (err: any) {
     const detail = err?.data?.detail || err?.message || "Login failed.";
-    authError.value = typeof detail === "string" ? detail : "Invalid username or password.";
+    authError.value =
+      typeof detail === "string" ? detail : "Invalid username or password.";
   } finally {
     isLoading.value = false;
   }

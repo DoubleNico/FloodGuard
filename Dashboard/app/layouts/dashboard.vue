@@ -1,40 +1,78 @@
 <template>
   <div class="flex h-screen overflow-hidden bg-(--surface-secondary)">
     <!-- Mobile Emergency Alerts Overlay -->
-    <div v-if="mobileEmergencies && mobileEmergencies.length > 0" class="fixed inset-x-0 top-0 z-50 flex flex-col gap-2 p-4 md:p-6 pointer-events-none">
+    <div
+      v-if="mobileEmergencies && mobileEmergencies.length > 0"
+      class="fixed inset-x-0 top-0 z-50 flex flex-col gap-2 p-4 md:p-6 pointer-events-none"
+    >
       <div
         v-for="sos in mobileEmergencies"
         :key="sos.id"
         class="bg-red-900 border-2 border-red-500 shadow-2xl rounded-2xl p-4 md:p-6 text-white pointer-events-auto max-w-2xl mx-auto w-full"
       >
         <div class="flex items-start gap-4">
-          <div class="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center shrink-0 alarm-ring">
+          <div
+            class="h-12 w-12 rounded-full bg-red-500 flex items-center justify-center shrink-0 alarm-ring"
+          >
             <Icon name="mdi:alert-decagram" class="h-8 w-8 text-white" />
           </div>
           <div class="flex-1">
-            <h2 class="text-xl font-bold uppercase tracking-widest text-red-100 flex items-center gap-2">
+            <h2
+              class="text-xl font-bold uppercase tracking-widest text-red-100 flex items-center gap-2"
+            >
               <span class="relative flex h-3 w-3">
-                <span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span>
-                <span class="relative inline-flex rounded-full h-3 w-3 bg-red-500"></span>
+                <span
+                  class="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"
+                ></span>
+                <span
+                  class="relative inline-flex rounded-full h-3 w-3 bg-red-500"
+                ></span>
               </span>
               Mobile SOS Alert
             </h2>
-            <p class="text-lg font-semibold mt-1">{{ sos.userName || 'Unknown Worker' }}</p>
-            <p class="text-red-200 text-sm mt-1 leading-relaxed">{{ sos.message }}</p>
-            
+            <p class="text-lg font-semibold mt-1">
+              {{ sos.userName || "Unknown Worker" }}
+            </p>
+            <p class="text-red-200 text-sm mt-1 leading-relaxed">
+              {{ sos.message }}
+            </p>
+
             <div class="mt-4 grid grid-cols-2 gap-3">
-              <div class="bg-red-950/50 rounded-lg p-2.5 border border-red-500/20">
-                <p class="text-[10px] text-red-300 uppercase tracking-wider font-semibold">Location</p>
-                <p class="font-medium text-sm mt-0.5 truncate">{{ sos.affectedAreas[0] }}</p>
+              <div
+                class="bg-red-950/50 rounded-lg p-2.5 border border-red-500/20"
+              >
+                <p
+                  class="text-[10px] text-red-300 uppercase tracking-wider font-semibold"
+                >
+                  Location
+                </p>
+                <p class="font-medium text-sm mt-0.5 truncate">
+                  {{ sos.affectedAreas[0] }}
+                </p>
               </div>
-              <div class="bg-red-950/50 rounded-lg p-2.5 border border-red-500/20">
-                <p class="text-[10px] text-red-300 uppercase tracking-wider font-semibold">Mobility Info</p>
-                <p class="font-medium text-sm mt-0.5">{{ sos.mobilityInfo?.has_issues ? `Issues: ${sos.mobilityInfo.gravity}` : 'No known issues' }}</p>
+              <div
+                class="bg-red-950/50 rounded-lg p-2.5 border border-red-500/20"
+              >
+                <p
+                  class="text-[10px] text-red-300 uppercase tracking-wider font-semibold"
+                >
+                  Mobility Info
+                </p>
+                <p class="font-medium text-sm mt-0.5">
+                  {{
+                    sos.mobilityInfo?.has_issues
+                      ? `Issues: ${sos.mobilityInfo.gravity}`
+                      : "No known issues"
+                  }}
+                </p>
               </div>
             </div>
           </div>
-          
-          <button @click="updateAlertStatus(sos.id, 'closed')" class="px-4 py-2 bg-red-950/50 border border-red-500/30 hover:bg-red-800 rounded-lg text-sm font-semibold transition-colors">
+
+          <button
+            @click="updateAlertStatus(sos.id, 'closed')"
+            class="px-4 py-2 bg-red-950/50 border border-red-500/30 hover:bg-red-800 rounded-lg text-sm font-semibold transition-colors"
+          >
             Dismiss
           </button>
         </div>
@@ -45,11 +83,11 @@
       <SidebarHeader>
         <template #default>
           <div class="flex items-center gap-2.5">
-            <div
-              class="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/25"
-            >
-              <Icon name="mdi:water-alert" class="h-5 w-5 text-white" />
-            </div>
+            <img
+              src="/icon.png"
+              alt="Hydralis Logo"
+              class="h-9 w-9 rounded-xl shadow-lg object-cover"
+            />
             <div>
               <span
                 class="text-base font-bold text-(--label-text) tracking-tight"
@@ -63,11 +101,11 @@
           </div>
         </template>
         <template #icon>
-          <div
-            class="h-9 w-9 rounded-xl bg-gradient-to-br from-blue-500 to-cyan-400 flex items-center justify-center shadow-lg shadow-blue-500/25"
-          >
-            <Icon name="mdi:water-alert" class="h-5 w-5 text-white" />
-          </div>
+          <img
+            src="/icon.png"
+            alt="Hydralis Logo"
+            class="h-9 w-9 rounded-xl shadow-lg object-cover"
+          />
         </template>
       </SidebarHeader>
 
@@ -143,14 +181,14 @@
           >
         </div>
         <SidebarItem
-          to="/dashboard/subscription"
-          icon="mdi:credit-card"
-          :label="$t('nav.subscription')"
-        />
-        <SidebarItem
           to="/dashboard/settings"
           icon="mdi:cog"
           :label="$t('nav.settings')"
+        />
+        <SidebarItem
+          to="/dashboard/profile"
+          icon="mdi:account"
+          label="Profile"
         />
       </SidebarContent>
 
@@ -270,7 +308,12 @@ const {
   roleIcon,
   setRole,
 } = useRole();
-const { activeAlerts, globalAlarmActive, mobileEmergencies, updateAlertStatus } = useAlerts();
+const {
+  activeAlerts,
+  globalAlarmActive,
+  mobileEmergencies,
+  updateAlertStatus,
+} = useAlerts();
 const { connect: connectStream, disconnect: disconnectStream } = useStream();
 
 const sessionCookie = useCookie<string | null>(AUTH_USER_COOKIE);
@@ -313,6 +356,7 @@ const currentPageTitle = computed(() => {
   if (path.includes("/industrial")) return t("nav.industrial");
   if (path.includes("/subscription")) return t("nav.subscription");
   if (path.includes("/settings")) return t("nav.settings");
+  if (path.includes("/profile")) return "Profile";
   return "Dashboard";
 });
 </script>

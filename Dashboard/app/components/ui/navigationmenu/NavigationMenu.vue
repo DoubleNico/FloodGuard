@@ -4,13 +4,13 @@
       class="absolute inset-0 bg-(--nav-bg) backdrop-blur-xl border-b border-(--nav-border) -z-10"
     ></div>
 
-    <div v-if="$slots.left" class="flex items-center relative z-10">
+    <div v-if="$slots.left" class="flex shrink-0 items-center relative z-10">
       <slot name="left" />
     </div>
     <div :class="centerClasses">
       <slot />
     </div>
-    <div v-if="$slots.right" class="flex items-center relative z-10">
+    <div v-if="$slots.right" class="flex shrink-0 items-center relative z-10">
       <slot name="right" />
     </div>
   </nav>
@@ -47,7 +47,7 @@ const hasLeftOrRight = computed(() => slots.left || slots.right);
 
 const navClasses = computed(() => {
   const classes = [
-    "sticky top-0 z-50 flex items-center w-full transition-all duration-300",
+    "sticky top-0 z-50 flex items-center w-full gap-4 transition-all duration-300",
   ];
 
   if (props.orientation === "horizontal") {
@@ -66,8 +66,13 @@ const navClasses = computed(() => {
 
 const centerClasses = computed(() => {
   const classes = ["flex items-center relative z-10"];
-  if (!hasLeftOrRight.value) {
-    classes.push("flex-1");
+  if (props.orientation === "horizontal") {
+    classes.push("flex-1 min-w-0 justify-center");
+  } else {
+    classes.push("w-full");
+  }
+  if (!hasLeftOrRight.value && props.orientation === "horizontal") {
+    classes.push("justify-center");
   }
   return classes.join(" ");
 });

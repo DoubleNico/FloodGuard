@@ -1,0 +1,38 @@
+services:
+  backend:
+    build: ./copernicus-flood-backend
+    ports:
+      - "127.0.0.1:8000:8000"
+    environment:
+      - ENVIRONMENT=production
+      - DATABASE_PATH=/data/hydralis.db
+      - JWT_SECRET=${JWT_SECRET}
+      - CORS_ORIGINS=${CORS_ORIGINS}
+      - CDSE_CLIENT_ID=${CDSE_CLIENT_ID:-}
+      - CDSE_CLIENT_SECRET=${CDSE_CLIENT_SECRET:-}
+      - EFAS_WMS_TOKEN=${EFAS_WMS_TOKEN:-}
+      - REQUEST_TIMEOUT_SECONDS=${REQUEST_TIMEOUT_SECONDS:-45}
+    volumes:
+      - backend_data:/data
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  dashboard:
+    build:
+      context: ./Dashboard
+      args:
+        NUXT_PUBLIC_API_BASE: ${NUXT_PUBLIC_API_BASE:-http://127.0.0.1:8000}
+    ports:
+      - "127.0.0.1:3000:3000"
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+
+volumes:
+  backend_data:

@@ -112,7 +112,7 @@ class _SignUpScreenState extends State<SignUpScreen> {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Hydralis',
+                'FloodGuard',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,

@@ -1,49 +1,66 @@
-# Hydralis Flood Disaster Management System
+# FloodGuard
 
-Hydralis is an integrated flood disaster management platform with three primary software components:
+FloodGuard is a standalone mobile application for real-time flood prediction and alerting in industrial environments. It integrates hydrological models with localized precipitation and water-level thresholds to generate site-specific flood risk forecasts up to **48 hours** in advance. When a risk threshold is crossed, FloodGuard pushes actionable alerts to workers and safety managers, including predicted inundation zones.
 
-- **Copernicus Flood Backend** (`copernicus-flood-backend/`): FastAPI service for flood screening, Sentinel Hub/Copernicus integration, EFAS overlays, persistent dispatch data, mobile APIs, and WebSocket events.
-- **Dispatch Dashboard** (`Dashboard/`): Nuxt web application used by dispatchers, industrial operators, and administrators to monitor alerts, satellite intelligence, safe locations, industrial telemetry, and subscriptions.
-- **Hydralis Mobile App** (`Flutter/`): Flutter mobile application for citizen/worker guidance, map awareness, evacuation flow, status updates, and man-down SOS alerts.
+Unlike generic weather apps, FloodGuard operates independently of external sensor networks, using only public meteorological data and pre-configured site parameters.
 
-There is also an Arduino circuit asset under `Flood_monitoring_Arduino_circuit/` for the flood monitoring hardware concept.
+## Components
+
+- **`floodguard-backend/`** — FastAPI backend. Hydrological forecast aggregation, site configuration, alerting, and mobile APIs.
+- **`Flutter/`** — FloodGuard mobile app for industrial workers and safety managers.
+- **`Flood_monitoring_Arduino_circuit/`** — Optional hardware concept (water-level sensor) that can extend public-data forecasts with local readings.
+
+## Data Sources (free, EU-focused)
+
+| Source | Use |
+| --- | --- |
+| **Copernicus Data Space / Sentinel Hub** | Sentinel-1 SAR backscatter for observed flood extent |
+| **CEMS / EFAS** (European Flood Awareness System) | Gridded flood probability forecasts, up to 10 days |
+| **GloFAS** | Global flood awareness forecasts, up to 30 days |
+| **ECMWF Open Data** | Open precipitation/temperature forecast fields |
+| **Open-Meteo** | Free hourly precipitation forecast API, EU-hosted, no API key |
+| **EEA Floods Directive** | Static flood-risk vector zones |
 
 ## System Overview
 
 ```text
-                         Copernicus Data Space / Sentinel Hub
+                Open-Meteo  ECMWF  EFAS / GloFAS  Sentinel-1 / Copernicus
+                     \        |        |              /
+                      \_______|________|_____________/
                                       |
                                       v
-Flutter Mobile App  <---- REST ---->  FastAPI Backend  <---- REST ---->  Nuxt Dispatch Dashboard
-       |                              SQLite storage                         |
-       |                                  |                                  |
-       +---------- WebSocket events ------+---------- WebSocket events ------+
+                            FastAPI Backend
+                       (forecast pipeline + sites
+                        + alert engine + push)
+                                      |
+                              REST  +  Push (FCM)
                                       |
                                       v
-                              EFAS / OSM boundary data
+                          FloodGuard Mobile App
+                  (site list, 48h forecast, inundation map,
+                       evacuation, man-down SOS)
 ```
 
-The backend is the source of truth for alerts, mobile users, safe locations, industrial facilities, satellite data, and WebSocket updates. The dashboard and mobile app communicate with it through REST and WebSocket endpoints.
+The backend is the source of truth for industrial sites, thresholds, forecast snapshots, alerts, and mobile registrations. The mobile app pulls forecasts and inundation overlays via REST and receives push alerts when thresholds are crossed.
 
 ## Repository Layout
 
 ```text
 .
-├── copernicus-flood-backend/      FastAPI backend and tests
-├── Dashboard/                     Nuxt dispatch dashboard
-├── Flutter/                       Flutter mobile app
+├── floodguard-backend/             FastAPI backend and tests
+├── Flutter/                        FloodGuard mobile app
 ├── Flood_monitoring_Arduino_circuit/
-│   └── circuit_image.png          Hardware concept image
-├── docs/                          Project-level documentation
-└── backend_spec.md                Earlier backend integration specification
+│   └── circuit_image.png           Hardware concept image
+├── docs/                           Project-level documentation
+└── backend_spec.md                 Backend integration spec
 ```
 
 ## Quick Start
 
-Start the backend first:
+Backend:
 
 ```bash
-cd copernicus-flood-backend
+cd floodguard-backend
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements-dev.txt
@@ -51,15 +68,7 @@ cp .env.example .env
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Start the dashboard:
-
-```bash
-cd Dashboard
-npm install
-NUXT_PUBLIC_API_BASE=http://127.0.0.1:8000 npm run dev
-```
-
-Start the mobile app:
+Mobile app:
 
 ```bash
 cd Flutter
@@ -67,63 +76,51 @@ flutter pub get
 flutter run
 ```
 
-For the Android emulator, the mobile app defaults to `http://10.0.2.2:8000`, which maps to the host machine. For a physical device, update `Flutter/lib/services/backend_service.dart` to use the host machine LAN IP.
+For the Android emulator the mobile app defaults to `http://10.0.2.2:8000`, which maps to the host machine. For a physical device, update `Flutter/lib/services/backend_service.dart` to use the host machine LAN IP.
 
 ## Demo Credentials
 
-The backend seeds demo dashboard users into SQLite during startup.
-
-| Username | Password | Role |
-| --- | --- | --- |
-| `dispatcher_ion` | `password123` | Dispatcher |
-| `dispatcher_ana` | `password123` | Dispatcher |
-
 The mobile app authenticates a demo user automatically:
 
-- Email: `andrei.ionescu@hydralis.com`
+- Email: `andrei.ionescu@floodguard.com`
 - Password: `secure_password`
 
 ## Important Workflows
+
+### 48-hour Site Forecast
+
+1. Backend pulls Open-Meteo precipitation forecast + EFAS/GloFAS gridded probabilities for each configured industrial site.
+2. Aggregator computes a per-site risk score using site-specific thresholds (precipitation accumulation, water-level proxy, terrain factor).
+3. Backend persists a forecast snapshot and exposes it through `GET /api/sites/{id}/forecast`.
+4. When a snapshot crosses a threshold, the alert engine creates an alert and pushes to all registered mobile tokens for that site.
+
+### Predicted Inundation Zones
+
+1. Backend overlays EFAS/GloFAS flood probability rasters with the site's terrain footprint.
+2. Output is a vector inundation polygon plus probability classes (low / medium / high / extreme).
+3. Mobile app renders the overlay on the site map.
 
 ### Mobile Man-Down SOS
 
 1. Mobile evacuation flow detects zero movement.
 2. Mobile calls `POST /api/alerts/trigger`.
-3. Backend creates a published dispatch alert with:
-   - user name
-   - user status (`Man Down`)
-   - mobility/safety level
-   - precise location
-4. Backend broadcasts `alert:mobile_emergency` over WebSocket.
-5. Dashboard displays the SOS alert and reporter metadata.
-6. If the user taps **I'M FINE**, mobile reports `Safe` and marks the latest SOS as `accidental`.
+3. Backend records a published SOS alert with reporter, status (`Man Down`), location.
+4. If the user taps **I'M FINE**, mobile reports `Safe` and the SOS is marked `accidental`.
 
-### Copernicus Flood Screening
+### Observed Flood Screening (Sentinel-1)
 
-1. A client requests flood data for a location or area.
-2. Backend queries Copernicus Data Space/Sentinel Hub for recent Sentinel-1 scenes.
+1. Client requests flood data for a location or area.
+2. Backend queries Copernicus Data Space / Sentinel Hub for recent Sentinel-1 scenes.
 3. Backend classifies flood likelihood using VV backscatter water fraction and optional baseline comparison.
 4. Backend returns JSON results or PNG heatmap overlays.
 
-### Dispatch Alert Lifecycle
-
-Alerts support these states:
-
-```text
-draft -> review -> approved -> published -> updated/closed
-published -> accidental
-```
-
-Mobile SOS alerts are created as `published`; user confirmation through **I'M FINE** changes them to `accidental`.
-
-## Documentation Index
+## Documentation
 
 - [Architecture](docs/architecture.md)
 - [Development Setup](docs/development.md)
 - [API Reference](docs/api-reference.md)
 - [Operations and Troubleshooting](docs/operations.md)
-- [Backend README](copernicus-flood-backend/README.md)
-- [Dashboard README](Dashboard/README.md)
+- [Backend README](floodguard-backend/README.md)
 - [Mobile README](Flutter/README.md)
 - [Arduino Circuit README](Flood_monitoring_Arduino_circuit/README.md)
 
@@ -132,15 +129,8 @@ Mobile SOS alerts are created as `published`; user confirmation through **I'M FI
 Backend:
 
 ```bash
-cd copernicus-flood-backend
+cd floodguard-backend
 PYTHONPATH=. ./.venv/bin/pytest -q
-```
-
-Dashboard:
-
-```bash
-cd Dashboard
-npm run build
 ```
 
 Mobile:
@@ -154,7 +144,8 @@ flutter analyze
 ## Production Notes
 
 - Replace demo credentials and JWT secret before deployment.
-- Store Copernicus, EFAS, and JWT secrets in environment variables or a secret manager.
-- Use a production database instead of SQLite for concurrent multi-user deployment.
+- Store Copernicus, EFAS, GloFAS, ECMWF, and JWT secrets in environment variables or a secret manager.
+- Replace SQLite with Postgres + PostGIS before scaling — inundation polygon queries require spatial indexes.
 - Put the backend behind TLS and configure strict CORS origins.
-- Validate flood thresholds with local hydrology data before operational use.
+- Validate per-site flood thresholds with local hydrology data before operational use.
+- Configure FCM credentials for push delivery.

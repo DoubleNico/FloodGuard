@@ -1,18 +1,21 @@
-# Hydralis Mobile App
+# FloodGuard Mobile App
 
-Flutter mobile app for flood readiness, evacuation guidance, user status updates, and man-down SOS alerts.
+Flutter mobile app for industrial workers and safety managers. Delivers real-time site flood-risk forecasts, predicted inundation overlays, push alerts when site thresholds are crossed, evacuation guidance, and man-down SOS.
 
 ## Features
 
-- Map view with worker/user position and safe location marker.
+- Site list with current and 48h forecast risk levels.
+- Site map with predicted inundation polygons (probability classes).
+- Push notifications when a site crosses a precipitation/flood-probability threshold.
+- Map view with worker/user position and safe location markers.
 - Backend map payload fetch from `/api/map/data`.
-- WebSocket connection to dispatch events.
-- Demo evacuation state machine.
+- WebSocket connection to backend events (`alert:new`, `forecast:updated`).
+- Evacuation state machine with audio + voice prompts.
 - Flood warning screen and evacuation start action.
 - Mobility/accessibility profile settings.
 - Periodic mobile status updates.
-- Automatic man-down SOS trigger.
-- **I'M FINE** confirmation that marks the dispatch SOS alert as accidental.
+- Automatic man-down SOS trigger after zero movement.
+- **I'M FINE** confirmation that marks the SOS alert as accidental.
 
 ## Tech Stack
 
@@ -67,7 +70,7 @@ The app tries to login this demo user, then signs it up if missing:
 
 | Field | Value |
 | --- | --- |
-| Email | `andrei.ionescu@hydralis.com` |
+| Email | `andrei.ionescu@floodguard.com` |
 | Password | `secure_password` |
 | Name | `Andrei Ionescu` |
 
@@ -93,7 +96,7 @@ The app tries to login this demo user, then signs it up if missing:
    - `user_status: "Man Down"`
    - mobility profile
    - current location
-4. Backend creates a published dispatch alert.
+4. Backend creates a published alert.
 5. User can tap **I'M FINE**.
 6. Mobile posts `Safe` status and marks the alert accidental.
 
@@ -109,9 +112,8 @@ curl http://127.0.0.1:8000/health
 
 Android emulator should use `10.0.2.2`, not `127.0.0.1`.
 
-### SOS does not appear on dashboard
+### SOS does not register on backend
 
-- Confirm mobile and dashboard point to the same backend.
 - Confirm mobile logs show successful authentication.
 - Check backend alerts:
 

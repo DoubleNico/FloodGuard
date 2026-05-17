@@ -66,7 +66,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 16),
             _buildInfoTile('Name', 'Andrei Ionescu'),
-            _buildInfoTile('Email', 'andrei.ionescu@hydralis.com'),
+            _buildInfoTile('Email', 'andrei.ionescu@floodguard.com'),
             const Divider(height: 40),
             const Text(
               'Mobility & Accessibility',

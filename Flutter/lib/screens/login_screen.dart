@@ -34,7 +34,7 @@ class LoginScreen extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Hydralis',
+                'FloodGuard',
                 style: TextStyle(
                   fontSize: 28,
                   fontWeight: FontWeight.bold,

@@ -6,7 +6,7 @@ Base backend URL for local development:
 http://127.0.0.1:8000
 ```
 
-OpenAPI documentation is available at:
+OpenAPI documentation:
 
 ```text
 http://127.0.0.1:8000/docs
@@ -30,8 +30,6 @@ Returns recent Sentinel-1 scenes for a requested area.
 
 Runs flood screening over a bbox, center/radius, or GeoJSON polygon.
 
-Example:
-
 ```bash
 curl -X POST http://127.0.0.1:8000/v1/flood/detect \
   -H "Content-Type: application/json" \
@@ -51,14 +49,14 @@ curl -X POST http://127.0.0.1:8000/v1/flood/detect \
 
 ### `GET /v1/flood/heatmap.png`
 
-Returns a PNG flood-risk overlay.
+PNG flood-risk overlay.
 
 ```bash
 curl -o heatmap.png \
   "http://127.0.0.1:8000/v1/flood/heatmap.png?latitude=45.45&longitude=28.05&radius_meters=1000"
 ```
 
-## EFAS and Boundaries
+## EFAS, GloFAS, and Boundaries
 
 | Method | Path | Purpose |
 | --- | --- | --- |
@@ -66,51 +64,80 @@ curl -o heatmap.png \
 | `GET` | `/v1/efas/layers` | Available EFAS WMS layers |
 | `GET` | `/v1/efas/location` | EFAS location warning summary |
 | `GET` | `/v1/efas/map.png` | EFAS WMS PNG overlay |
+| `GET` | `/v1/glofas/location` | GloFAS location forecast (planned) |
 
-Example:
+## Sites and Forecasts (FloodGuard core, phase 2)
 
-```bash
-curl \
-  "http://127.0.0.1:8000/v1/efas/location?latitude=45.45&longitude=28.05&radius_meters=50000"
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `GET` | `/api/sites` | List industrial sites visible to the caller |
+| `POST` | `/api/sites` | Create a new site (admin only) |
+| `PATCH` | `/api/sites/{site_id}` | Update a site (admin only) |
+| `DELETE` | `/api/sites/{site_id}` | Delete a site (admin only) |
+| `GET` | `/api/sites/{site_id}/forecast` | Latest 48h forecast snapshot for a site |
+| `GET` | `/api/sites/{site_id}/inundation.geojson` | Predicted inundation polygons (probability classes) |
+
+Site payload (planned shape):
+
+```json
+{
+  "id": 1,
+  "name": "Galați Refinery North",
+  "country": "RO",
+  "location": { "lat": 45.45, "lng": 28.05 },
+  "footprint_geojson": { "type": "Polygon", "coordinates": [...] },
+  "thresholds": {
+    "precip_mm_24h": 60,
+    "precip_mm_48h": 90,
+    "efas_probability": 0.4
+  },
+  "contacts": ["andrei.ionescu@floodguard.com"]
+}
 ```
 
-## Dashboard API
+Forecast snapshot (planned shape):
 
-All dashboard endpoints are under `/api/v1`.
+```json
+{
+  "site_id": 1,
+  "generated_at": "2026-05-08T08:30:00Z",
+  "horizon_hours": 48,
+  "risk_score": 0.72,
+  "risk_class": "high",
+  "drivers": {
+    "precip_mm_24h": 78,
+    "precip_mm_48h": 112,
+    "efas_probability": 0.55,
+    "glofas_probability": 0.41
+  },
+  "inundation_geojson": { "type": "FeatureCollection", "features": [...] }
+}
+```
 
-### Authentication
+## Push Registration (planned)
 
-`POST /api/v1/auth/login`
+| Method | Path | Purpose |
+| --- | --- | --- |
+| `POST` | `/api/push/register` | Register an FCM token, scoped by site list |
+| `DELETE` | `/api/push/register/{token}` | Unregister a token |
 
 Request:
 
 ```json
 {
-  "username": "dispatcher_ion",
-  "password": "password123"
+  "token": "fcm-device-token",
+  "site_ids": [1, 2, 5],
+  "platform": "android"
 }
 ```
 
-Response:
-
-```json
-{
-  "token": "...",
-  "user": {
-    "id": "usr_001",
-    "username": "dispatcher_ion",
-    "role": "dispatcher"
-  }
-}
-```
-
-### Alerts
+## Alerts
 
 | Method | Path | Purpose |
 | --- | --- | --- |
 | `GET` | `/api/v1/alerts` | List alerts |
-| `POST` | `/api/v1/alerts` | Create draft alert |
-| `PATCH` | `/api/v1/alerts/{alert_id}/status` | Update workflow state |
+| `POST` | `/api/v1/alerts` | Create alert (admin) |
+| `PATCH` | `/api/v1/alerts/{alert_id}/status` | Update alert status |
 | `PATCH` | `/api/v1/alerts/{alert_id}/message` | Update alert message |
 | `POST` | `/api/v1/alerts/{alert_id}/broadcast` | Publish/broadcast alert |
 
@@ -119,6 +146,8 @@ Alert statuses:
 ```text
 draft, review, approved, published, updated, closed, accidental
 ```
+
+> The `draft → review → approved` lifecycle is being simplified for FloodGuard. Threshold-triggered alerts are created as `published` directly. Manual review is optional.
 
 Mobile SOS alerts are created as published alerts and include:
 
@@ -133,40 +162,6 @@ Mobile SOS alerts are created as published alerts and include:
   }
 }
 ```
-
-### Safe Locations
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/locations` | List safe locations |
-| `POST` | `/api/v1/locations` | Create safe location |
-| `PATCH` | `/api/v1/locations/{location_id}` | Update safe location |
-| `DELETE` | `/api/v1/locations/{location_id}` | Delete safe location |
-
-### Satellite Intelligence
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/satellite/water-levels` | Water level stations |
-| `GET` | `/api/v1/satellite/ndwi` | NDWI readings |
-| `GET` | `/api/v1/satellite/precipitation` | Precipitation forecast |
-| `GET` | `/api/v1/satellite/galileo` | Galileo satellite status |
-| `GET` | `/api/v1/satellite/heatmap` | Flood heatmap demo data |
-
-### Industrial Monitoring
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/industrial/factories` | List factories |
-| `POST` | `/api/v1/industrial/factories` | Create factory |
-| `GET` | `/api/v1/industrial/sensors` | List sensors |
-| `POST` | `/api/v1/industrial/sensors` | Create sensor |
-
-### Subscription
-
-| Method | Path | Purpose |
-| --- | --- | --- |
-| `GET` | `/api/v1/subscription/status` | Current tier and usage |
 
 ## Mobile API
 
@@ -195,12 +190,11 @@ Returns:
 - active alerts
 - Copernicus flood warning summary
 - EFAS summary
+- forecast snapshots for sites within radius (planned)
 
 ### Status Update
 
 `POST /api/user/status`
-
-Request:
 
 ```json
 {
@@ -221,8 +215,6 @@ If status is `Safe`, the backend also attempts to mark the user's latest active 
 
 Requires mobile bearer token.
 
-Request:
-
 ```json
 {
   "user_id": "mob_001",
@@ -241,13 +233,39 @@ Request:
 }
 ```
 
-Response includes `alert_id`, `trigger_id`, and the created dispatch alert.
+Response includes `alert_id`, `trigger_id`, and the created alert.
 
 ### Accidental Alert Fallback
 
 `POST /api/alerts/accidental`
 
-Requires mobile bearer token. Marks the latest active SOS for the authenticated mobile user as accidental. This is used when the mobile app did not retain the original `alert_id`.
+Requires mobile bearer token. Marks the latest active SOS for the authenticated mobile user as accidental, when the original `alert_id` is unknown.
+
+## Operator Authentication
+
+`POST /api/v1/auth/login`
+
+```json
+{
+  "username": "operator",
+  "password": "password123"
+}
+```
+
+Response:
+
+```json
+{
+  "token": "...",
+  "user": {
+    "id": "usr_001",
+    "username": "operator",
+    "role": "admin"
+  }
+}
+```
+
+> Operator login is retained for site management and alert review. Dispatcher-style multi-role workflow has been removed for FloodGuard.
 
 ## WebSocket
 
@@ -257,7 +275,7 @@ Event shape:
 
 ```json
 {
-  "event": "alert:mobile_emergency",
+  "event": "alert:new",
   "payload": {}
 }
 ```
@@ -266,9 +284,8 @@ Important events:
 
 | Event | Payload |
 | --- | --- |
-| `alert:new` | Alert row |
-| `alert:updated` | Alert row |
-| `alert:mobile_emergency` | SOS payload with nested created alert |
+| `alert:new` | New alert row |
+| `alert:updated` | Updated alert row |
+| `alert:mobile_emergency` | SOS payload with nested alert |
+| `forecast:updated` | New forecast snapshot for a site (planned) |
 | `user:status_update` | Mobile status update |
-| `user:status_emergency` | Mobile emergency/help status |
-| `location:occupancy_update` | Safe location update |

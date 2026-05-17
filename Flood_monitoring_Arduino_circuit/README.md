@@ -1,6 +1,6 @@
 # Flood Monitoring Arduino Circuit
 
-This folder contains the hardware concept asset for the Hydralis flood monitoring circuit.
+This folder contains the hardware concept asset for the FloodGuard flood monitoring circuit.
 
 ## Asset
 

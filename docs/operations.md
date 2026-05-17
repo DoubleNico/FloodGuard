@@ -7,7 +7,7 @@ Backend environment variables:
 | Variable | Default | Purpose |
 | --- | --- | --- |
 | `ENVIRONMENT` | `local` | Runtime label |
-| `DATABASE_PATH` | `hydralis.db` | SQLite database file |
+| `DATABASE_PATH` | `floodguard.db` | SQLite database file |
 | `JWT_SECRET` | `change-this-dev-secret` | Token signing secret |
 | `CORS_ORIGINS` | `*` | Comma-separated allowed origins |
 | `CDSE_CLIENT_ID` | unset | Copernicus Data Space OAuth client |
@@ -16,14 +16,12 @@ Backend environment variables:
 | `SENTINEL_HUB_TOKEN_URL` | CDSE token URL | OAuth token endpoint |
 | `EFAS_WMS_URL` | EFAS public WMS URL | EFAS WMS endpoint |
 | `EFAS_WMS_TOKEN` | unset | Optional EFAS access token |
+| `OPEN_METEO_BASE_URL` | `https://api.open-meteo.com/v1` | Open-Meteo API base |
+| `OPEN_METEO_FLOOD_BASE_URL` | `https://flood-api.open-meteo.com/v1` | Open-Meteo Flood API base (GloFAS proxy) |
 | `OVERPASS_URL` | Overpass public API | Admin boundary source |
 | `REQUEST_TIMEOUT_SECONDS` | `45` | Backend external request timeout |
-
-Dashboard environment variables:
-
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `NUXT_PUBLIC_API_BASE` | `http://localhost:8000` | Backend base URL |
+| `FORECAST_INTERVAL_SECONDS` | `1800` | Period between scheduler forecast cycles |
+| `FORECAST_SCHEDULER_ENABLED` | `1` | Disable in-process scheduler with `0` (multi-worker, tests, separate worker) |
 
 Mobile URLs are currently constants in `Flutter/lib/services/backend_service.dart`.
 
@@ -47,53 +45,32 @@ Alerts:
 curl http://127.0.0.1:8000/api/v1/alerts
 ```
 
+Forecast for a site:
+
+```bash
+curl http://127.0.0.1:8000/api/sites/1/forecast
+```
+
 ## Database Lifecycle
 
-The backend creates and seeds the SQLite database on startup. It also applies lightweight schema backfills for mobile SOS metadata columns.
-
-If the dashboard shows old alert rows without mobile user metadata:
-
-1. Restart the backend so schema/backfill code runs.
-2. Refresh the dashboard.
-3. Query `/api/v1/alerts` and confirm the alert includes `userName`, `userStatus`, and `mobilityInfo`.
+The backend creates and seeds the SQLite database on startup. It also applies lightweight schema backfills for mobile SOS metadata columns and forecast tables.
 
 To reset local state:
 
 ```bash
-cd copernicus-flood-backend
-rm -f hydralis.db
+cd floodguard-backend
+rm -f floodguard.db
 uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
 ## Troubleshooting
 
-### Dashboard cannot reach backend
-
-Symptoms:
-
-- Login fails.
-- Alerts page remains empty.
-- WebSocket reconnects repeatedly.
-
-Checks:
-
-```bash
-curl http://127.0.0.1:8000/health
-echo $NUXT_PUBLIC_API_BASE
-```
-
-Fix:
-
-- Start backend first.
-- Set `NUXT_PUBLIC_API_BASE=http://127.0.0.1:8000`.
-- If accessing from another device, use the backend host LAN IP.
-
 ### Mobile app cannot reach backend
 
 Symptoms:
 
-- Map data does not update.
-- SOS alerts do not appear on the dashboard.
+- Site list does not load.
+- Push tokens fail to register.
 - Authentication error appears in Flutter logs.
 
 Checks:
@@ -128,6 +105,32 @@ Also check:
 - Sentinel Hub credentials are valid.
 - Network access to CDSE/Sentinel Hub is available.
 
+### Forecast snapshot is missing or stale
+
+Symptoms:
+
+- Mobile app shows "No forecast available" for a site.
+- Latest snapshot timestamp is more than one hour old.
+
+Checks:
+
+- Confirm Open-Meteo, Open-Meteo Flood, and EFAS endpoints are reachable from the backend host.
+- Inspect backend logs for `[scheduler]` errors.
+- Confirm `FORECAST_SCHEDULER_ENABLED=1` and `FORECAST_INTERVAL_SECONDS` is set sanely.
+- Force a cycle for debugging: `curl -X POST http://127.0.0.1:8000/api/forecast/run`.
+
+### Push alert not delivered
+
+Symptoms:
+
+- Threshold crossed, but no notification reaches the device.
+
+Checks:
+
+- `FCM_SERVICE_ACCOUNT_JSON` is set and readable.
+- Mobile app registered a token via `POST /api/push/register`.
+- Token has not been invalidated (FCM returns 404 / `INVALID_ARGUMENT`).
+
 ### Man-down alert does not show user name or mobility
 
 Expected alert API fields:
@@ -152,8 +155,7 @@ curl http://127.0.0.1:8000/api/v1/alerts
 Fixes:
 
 - Restart backend to run metadata backfill.
-- Hard-refresh dashboard.
-- Confirm the dashboard is connected to the same backend instance as the mobile app.
+- Confirm the mobile app and backend are talking to the same instance.
 
 ### I'M FINE does not mark alert accidental
 
@@ -163,15 +165,6 @@ Expected behavior:
 - Mobile patches the known `alert_id`.
 - If the alert ID is missing, mobile calls `/api/alerts/accidental`.
 - Backend marks the user's latest active SOS as `accidental`.
-- Dashboard receives `alert:updated`.
-
-Checks:
-
-```bash
-curl http://127.0.0.1:8000/api/v1/alerts
-```
-
-The alert status should be `accidental`.
 
 ### Flutter RenderFlex overflow
 
@@ -179,13 +172,14 @@ The flood warning screen is scrollable and should not overflow on short emulator
 
 ## Deployment Checklist
 
-- Use HTTPS for backend and dashboard.
+- Use HTTPS for the backend.
 - Set strict `CORS_ORIGINS`.
 - Replace demo users and passwords.
 - Replace `JWT_SECRET`.
-- Move from SQLite to a managed database for concurrent usage.
+- Move from SQLite to Postgres + PostGIS for inundation polygons and concurrent usage.
 - Configure persistent logs.
-- Configure backup and recovery for alert history.
+- Configure backup and recovery for alert and forecast history.
 - Add monitoring for backend health, WebSocket connection counts, and external API failures.
-- Validate flood classification thresholds with domain experts.
+- Validate site-level flood thresholds with local hydrology data.
+- Configure FCM service-account credentials for production push.
 - Review mobile GPS/privacy handling.

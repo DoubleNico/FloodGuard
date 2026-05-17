@@ -4,14 +4,16 @@ import 'package:http/http.dart' as http;
 import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:latlong2/latlong.dart';
 
+import 'notification_service.dart';
+
 class BackendService {
   static final BackendService _instance = BackendService._internal();
   factory BackendService() => _instance;
   BackendService._internal();
 
-  final String baseUrl = 'http://10.0.2.2:8000/api';
-  final String apiV1Url = 'http://10.0.2.2:8000/api/v1';
-  final String wsUrl = 'ws://10.0.2.2:8000/api/v1/stream';
+  final String baseUrl = 'http://127.0.0.1:8000/api';
+  final String apiV1Url = 'http://127.0.0.1:8000/api/v1';
+  final String wsUrl = 'ws://127.0.0.1:8000/api/v1/stream';
 
   String? _token;
   String? _userId;
@@ -29,13 +31,14 @@ class BackendService {
   final List<Map<String, dynamic>> activeAlerts = [];
 
   Future<void> initialize() async {
+    await NotificationService().initialize();
     await _authenticateDummyUser();
     _connectWebSocket();
   }
 
   Future<void> _authenticateDummyUser() async {
     final loginPayload = {
-      "email": "andrei.ionescu@hydralis.com",
+      "email": "andrei.ionescu@floodguard.com",
       "password": "secure_password",
     };
 
@@ -56,7 +59,7 @@ class BackendService {
         // If login fails, try signup
         final signupPayload = {
           "full_name": "Andrei Ionescu",
-          "email": "andrei.ionescu@hydralis.com",
+          "email": "andrei.ionescu@floodguard.com",
           "password": "secure_password",
           "birthday": "1985-06-15",
           "primary_location": "Galati Port Facility",
@@ -94,12 +97,12 @@ class BackendService {
             final data = jsonDecode(message);
             _eventController.add(data);
 
-            // Intercept emergency status events and route them to alerts
             final eventType = data['event'] ?? data['type'];
             if (eventType == 'user:status_emergency') {
               activeAlerts.add(data);
               _alertController.add(data);
             }
+            _maybeShowLocalNotification(eventType, data);
           } catch (e) {
             print("WebSocket parse error: $e");
           }
@@ -255,5 +258,111 @@ class BackendService {
     } catch (e) {
       print("Cancel latest alert error: $e");
     }
+  }
+
+  Future<List<Map<String, dynamic>>> fetchSites() async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/sites'),
+        headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
+      );
+      if (res.statusCode == 200) {
+        final List<dynamic> body = jsonDecode(res.body);
+        return body.cast<Map<String, dynamic>>();
+      }
+      print("Failed to fetch sites: ${res.body}");
+    } catch (e) {
+      print("Fetch sites error: $e");
+    }
+    return const [];
+  }
+
+  Future<Map<String, dynamic>?> fetchSiteForecast(
+    int siteId, {
+    bool refresh = false,
+  }) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/sites/$siteId/forecast?refresh=$refresh'),
+        headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      print("Failed to fetch site forecast: ${res.body}");
+    } catch (e) {
+      print("Fetch site forecast error: $e");
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> simulateSite(int siteId, String level) async {
+    try {
+      final res = await http.post(
+        Uri.parse('$baseUrl/sites/$siteId/simulate?level=$level'),
+        headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+      print("Simulate site failed: ${res.body}");
+    } catch (e) {
+      print("Simulate site error: $e");
+    }
+    return null;
+  }
+
+  Future<Map<String, dynamic>?> fetchSiteInundation(int siteId) async {
+    try {
+      final res = await http.get(
+        Uri.parse('$baseUrl/sites/$siteId/inundation.geojson'),
+        headers: _token != null ? {"Authorization": "Bearer $_token"} : {},
+      );
+      if (res.statusCode == 200) {
+        return jsonDecode(res.body) as Map<String, dynamic>;
+      }
+    } catch (e) {
+      print("Fetch site inundation error: $e");
+    }
+    return null;
+  }
+
+  void _maybeShowLocalNotification(
+    String? eventType,
+    Map<String, dynamic> data,
+  ) {
+    if (eventType == null) return;
+
+    final payload = data['payload'] is Map ? data['payload'] as Map : data;
+    String title;
+    String body;
+    int notifId = DateTime.now().millisecondsSinceEpoch.remainder(1 << 31);
+
+    switch (eventType) {
+      case 'alert:new':
+      case 'alert:updated':
+        final alertTitle = payload['title'] ?? 'Flood Alert';
+        final message = payload['message'] ?? '';
+        title = alertTitle.toString();
+        body = message.toString();
+        break;
+      case 'forecast:updated':
+        final siteName = payload['site_name'] ?? 'Site';
+        final riskClass = (payload['risk_class'] ?? '')
+            .toString()
+            .toUpperCase();
+        if (riskClass != 'HIGH' && riskClass != 'EXTREME') return;
+        title = '$riskClass risk at $siteName';
+        body = 'Open FloodGuard for the 48h forecast and inundation map.';
+        break;
+      case 'alert:mobile_emergency':
+        title = 'Mobile Emergency';
+        body = (payload['message'] ?? 'Worker emergency reported').toString();
+        break;
+      default:
+        return;
+    }
+
+    NotificationService().showAlert(id: notifId, title: title, body: body);
   }
 }
